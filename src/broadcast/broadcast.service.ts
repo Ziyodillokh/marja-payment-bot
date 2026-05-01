@@ -22,12 +22,12 @@ import {
 } from '../common/enums/queue-names.enum';
 
 export interface BroadcastStartJob {
-  broadcastId: number;
+  broadcastId: string;
 }
 
 export interface BroadcastSendOneJob {
-  broadcastId: number;
-  userId: number;
+  broadcastId: string;
+  userId: string;
 }
 
 @Injectable()
@@ -48,14 +48,40 @@ export class BroadcastService {
     });
   }
 
-  async getById(id: number): Promise<Broadcast> {
+  async getById(id: string): Promise<Broadcast> {
     const b = await this.prisma.broadcast.findUnique({ where: { id } });
     if (!b) throw new NotFoundException(`Broadcast #${id} not found`);
     return b;
   }
 
-  async create(dto: CreateBroadcastDto, createdById?: number): Promise<Broadcast> {
-    let userIds: number[];
+  async getRecipientStats(broadcastId: string): Promise<{
+    total: number;
+    sent: number;
+    failed: number;
+    edited: number;
+  }> {
+    const grouped = await this.prisma.broadcastRecipient.groupBy({
+      by: ['status'],
+      where: { broadcastId },
+      orderBy: { status: 'asc' },
+      _count: { _all: true },
+    });
+    let sent = 0,
+      failed = 0,
+      edited = 0,
+      total = 0;
+    for (const g of grouped) {
+      const c = (g._count as { _all?: number } | undefined)?._all ?? 0;
+      total += c;
+      if (g.status === 'SENT') sent = c;
+      else if (g.status === 'FAILED') failed = c;
+      else if (g.status === 'EDITED') edited = c;
+    }
+    return { total, sent, failed, edited };
+  }
+
+  async create(dto: CreateBroadcastDto, createdById?: string): Promise<Broadcast> {
+    let userIds: string[];
     if (dto.filterType === BroadcastFilter.SPECIFIC) {
       userIds = dto.userIds ?? [];
       if (userIds.length === 0) {
@@ -91,20 +117,68 @@ export class BroadcastService {
     await this.queue.add(
       BROADCAST_JOBS.START,
       { broadcastId: broadcast.id } satisfies BroadcastStartJob,
-      { delay, jobId: `bc:${broadcast.id}` },
+      { delay, jobId: `bc_${broadcast.id}` },
     );
 
     return broadcast;
   }
 
-  async cancel(id: number): Promise<Broadcast> {
+  /**
+   * Mavjud broadcast'ni tahrirlash + yuborilgan barcha xabarlarni Telegram'da yangilash.
+   * Telegram cheklovlari:
+   *   - text edit: faqat 48 soat ichida
+   *   - media bilan xabarda faqat caption edit qilinadi
+   *   - rate limit: ~30 ms/sec
+   */
+  async editAndPropagate(
+    id: string,
+    input: { text?: string; mediaFileId?: string | null; mediaType?: string | null },
+  ): Promise<Broadcast> {
+    const before = await this.getById(id);
+
+    // 1. DB'da yangilaymiz.
+    const updated = await this.prisma.broadcast.update({
+      where: { id },
+      data: {
+        text: input.text ?? before.text,
+        mediaFileId: input.mediaFileId === undefined ? before.mediaFileId : input.mediaFileId,
+        mediaType: input.mediaType === undefined ? before.mediaType : input.mediaType,
+      },
+    });
+
+    // 2. Yuborilgan adresatlarga edit yuboramiz (background queue orqali).
+    const recipients = await this.prisma.broadcastRecipient.findMany({
+      where: { broadcastId: id, status: 'SENT', messageId: { not: null } },
+    });
+
+    let delay = 0;
+    for (const r of recipients) {
+      await this.queue.add(
+        'edit-broadcast-message',
+        { broadcastId: id, recipientId: r.id },
+        {
+          delay,
+          jobId: `bc-edit_${id}_${r.id}_${Date.now()}`,
+        },
+      );
+      delay += 50; // ~20 msg/sec
+    }
+
+    this.logger.log(
+      `Broadcast #${id} edit dispatched to ${recipients.length} recipients`,
+    );
+
+    return updated;
+  }
+
+  async cancel(id: string): Promise<Broadcast> {
     const b = await this.getById(id);
     if (b.status !== BroadcastStatus.PENDING) {
       throw new BadRequestException(
         `Cannot cancel broadcast in status ${b.status}`,
       );
     }
-    await this.queue.remove(`bc:${id}`).catch(() => undefined);
+    await this.queue.remove(`bc_${id}`).catch(() => undefined);
     return this.prisma.broadcast.update({
       where: { id },
       data: { status: BroadcastStatus.CANCELLED },
@@ -113,35 +187,35 @@ export class BroadcastService {
 
   // ──────────── Processor ichida ishlatiladi ────────────
 
-  async markStarted(id: number): Promise<void> {
+  async markStarted(id: string): Promise<void> {
     await this.prisma.broadcast.update({
       where: { id },
       data: { status: BroadcastStatus.SENDING, startedAt: new Date() },
     });
   }
 
-  async incrementSent(id: number): Promise<void> {
+  async incrementSent(id: string): Promise<void> {
     await this.prisma.broadcast.update({
       where: { id },
       data: { sentCount: { increment: 1 } },
     });
   }
 
-  async incrementFailed(id: number): Promise<void> {
+  async incrementFailed(id: string): Promise<void> {
     await this.prisma.broadcast.update({
       where: { id },
       data: { failedCount: { increment: 1 } },
     });
   }
 
-  async markCompleted(id: number): Promise<void> {
+  async markCompleted(id: string): Promise<void> {
     await this.prisma.broadcast.update({
       where: { id },
       data: { status: BroadcastStatus.COMPLETED, completedAt: new Date() },
     });
   }
 
-  async markFailed(id: number): Promise<void> {
+  async markFailed(id: string): Promise<void> {
     await this.prisma.broadcast.update({
       where: { id },
       data: { status: BroadcastStatus.FAILED, completedAt: new Date() },

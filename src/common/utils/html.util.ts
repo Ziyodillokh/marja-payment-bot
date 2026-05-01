@@ -9,10 +9,14 @@ export function escapeHtml(input: string | null | undefined): string {
     .replace(/>/g, '&gt;');
 }
 
-// "500000" → "500 000"
-export function formatPrice(value: string | number): string {
-  const n = typeof value === 'string' ? value.replace(/\D/g, '') : String(Math.trunc(value));
-  return n.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+// "500000" → "500 000"  (yoki suffix bilan: "500 000 so'm")
+export function formatPrice(value: string | number, suffix?: string): string {
+  const n =
+    typeof value === 'string'
+      ? value.replace(/\D/g, '')
+      : String(Math.trunc(value));
+  const formatted = n.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return suffix ? `${formatted} ${suffix}`.trim() : formatted;
 }
 
 export function formatDateTime(d: Date): string {

@@ -22,6 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSettings, useUpdateSetting, useUploadVideo } from '@/lib/queries/useSettings';
 import { formatCardNumber, formatPrice } from '@/lib/utils';
+import { api } from '@/lib/api';
 
 const KEYS = {
   WELCOME_VIDEO_FILE_ID: 'welcome_video_file_id',
@@ -97,13 +98,29 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
     >
       <div className="space-y-3">
         {currentFileId && (
-          <div className="rounded-md border border-border bg-subtle/40 p-3">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Joriy file_id
+          <div className="space-y-2">
+            <div className="overflow-hidden rounded-md border border-border bg-black">
+              <video
+                key={currentFileId}
+                controls
+                preload="metadata"
+                className="w-full max-h-96"
+                src={api.settings.welcomeVideoUrl(currentFileId)}
+              >
+                Sizning brauzeringiz video tegini qo&apos;llab-quvvatlamaydi.
+              </video>
             </div>
-            <div className="mt-1 font-mono text-xs text-foreground">
-              {currentFileId.slice(0, 64)}
-              {currentFileId.length > 64 && '...'}
+            <div className="flex items-center justify-between rounded-md border border-border bg-subtle/40 px-3 py-2">
+              <div>
+                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                  file_id
+                </div>
+                <div className="mt-0.5 font-mono text-xs">
+                  {currentFileId.slice(0, 32)}
+                  {currentFileId.length > 32 && '...'}
+                </div>
+              </div>
+              <span className="text-xs text-success">✓ Yuklangan</span>
             </div>
           </div>
         )}

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { Search, Users as UsersIcon } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 import { PageHeader } from '@/components/shared/page-header';
 import { Input } from '@/components/ui/input';
@@ -18,7 +18,9 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { UserStatusBadge } from '@/components/shared/status-badge';
+import { UtmBadge } from '@/components/shared/utm-badge';
 import { useUsers } from '@/lib/queries/useUsers';
+import { useUtmSources } from '@/lib/queries/useUtm';
 import { getFullName, getInitials } from '@/lib/utils';
 import type { User, UserStatus } from '@/types';
 
@@ -32,27 +34,30 @@ const STATUS_OPTIONS: Array<{ value: 'ALL' | UserStatus; label: string }> = [
   { value: 'BLOCKED', label: 'Bloklangan' },
 ];
 
+type UtmFilter = 'ALL' | 'DIRECT' | string; // 'ALL' | 'DIRECT' | utm source id
+
 export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<'ALL' | UserStatus>('ALL');
+  const [utmFilter, setUtmFilter] = useState<UtmFilter>('ALL');
   const [page, setPage] = useState(1);
+
+  const { data: utmSources } = useUtmSources();
 
   const { data, isLoading } = useUsers({
     search: search || undefined,
     status: status === 'ALL' ? undefined : status,
+    utmSourceId:
+      utmFilter === 'ALL'
+        ? undefined
+        : utmFilter === 'DIRECT'
+          ? null
+          : utmFilter,
     page,
     limit: 20,
   });
 
   const columns: DataTableColumn<User>[] = [
-    {
-      key: 'id',
-      header: 'ID',
-      headerClassName: 'w-16',
-      cell: (u) => (
-        <span className="font-mono text-xs text-muted-foreground">#{u.id}</span>
-      ),
-    },
     {
       key: 'user',
       header: 'Foydalanuvchi',
@@ -86,8 +91,18 @@ export default function UsersPage() {
       ),
     },
     {
+      key: 'utm',
+      header: 'Manba',
+      cell: (u) =>
+        u.utmSource ? (
+          <UtmBadge code={u.utmSource.code} name={u.utmSource.name} />
+        ) : (
+          <UtmBadge code="direct" name="To'g'ridan-to'g'ri" />
+        ),
+    },
+    {
       key: 'status',
-      header: 'Status',
+      header: 'Holat',
       cell: (u) => <UserStatusBadge status={u.status} />,
     },
     {
@@ -136,6 +151,7 @@ export default function UsersPage() {
             className="pl-9"
           />
         </div>
+
         <Select
           value={status}
           onValueChange={(v) => {
@@ -143,13 +159,34 @@ export default function UsersPage() {
             setStatus(v as 'ALL' | UserStatus);
           }}
         >
-          <SelectTrigger className="w-full sm:w-48">
+          <SelectTrigger className="w-full sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             {STATUS_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={utmFilter}
+          onValueChange={(v) => {
+            setPage(1);
+            setUtmFilter(v);
+          }}
+        >
+          <SelectTrigger className="w-full sm:w-48">
+            <SelectValue placeholder="Manba" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ALL">Barcha manbalar</SelectItem>
+            <SelectItem value="DIRECT">To&apos;g&apos;ridan-to&apos;g&apos;ri</SelectItem>
+            {utmSources?.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name} ({s.code})
               </SelectItem>
             ))}
           </SelectContent>
@@ -163,8 +200,8 @@ export default function UsersPage() {
         rowKey={(u) => u.id}
         emptyTitle="Foydalanuvchi topilmadi"
         emptyDescription={
-          search || status !== 'ALL'
-            ? 'Filtrni o\'zgartirib qayta urining'
+          search || status !== 'ALL' || utmFilter !== 'ALL'
+            ? "Filtrni o'zgartirib qayta urining"
             : "Bot hali bironta foydalanuvchi qabul qilmagan"
         }
         pagination={

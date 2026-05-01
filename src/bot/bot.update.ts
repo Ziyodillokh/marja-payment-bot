@@ -137,6 +137,15 @@ export class BotUpdate implements OnModuleInit {
       }
     });
 
+    bot.callbackQuery('balance', async (ctx) => {
+      try {
+        await ctx.answerCallbackQuery();
+        await this.balanceHandler.handle(ctx);
+      } catch (err) {
+        this.logError('balance callback', err);
+      }
+    });
+
     bot.callbackQuery('leaderboard', async (ctx) => {
       try {
         await this.leaderboardHandler.handle(ctx, true);
@@ -155,28 +164,25 @@ export class BotUpdate implements OnModuleInit {
       }
     });
 
-    // approve:{id}, approve_confirm:{id}, approve_cancel:{id}
-    // reject:{id},  reject_confirm:{id},  reject_cancel:{id}
-    bot.callbackQuery(/^approve:(\d+)$/, async (ctx) => {
-      const id = Number(ctx.match[1]);
-      await this.adminGroupHandler.handleApprove(ctx, id);
+    // approve:{cuid}, approve_confirm:{cuid}, approve_cancel:{cuid}
+    // reject:{cuid},  reject_confirm:{cuid},  reject_cancel:{cuid}
+    // cuid format: 20-30 alphanumeric chars
+    bot.callbackQuery(/^approve:([a-z0-9]{20,30})$/i, async (ctx) => {
+      await this.adminGroupHandler.handleApprove(ctx, ctx.match[1]);
     });
-    bot.callbackQuery(/^approve_confirm:(\d+)$/, async (ctx) => {
-      const id = Number(ctx.match[1]);
-      await this.adminGroupHandler.handleApproveConfirm(ctx, id);
+    bot.callbackQuery(/^approve_confirm:([a-z0-9]{20,30})$/i, async (ctx) => {
+      await this.adminGroupHandler.handleApproveConfirm(ctx, ctx.match[1]);
     });
-    bot.callbackQuery(/^approve_cancel:(\d+)$/, async (ctx) => {
+    bot.callbackQuery(/^approve_cancel:([a-z0-9]{20,30})$/i, async (ctx) => {
       await this.adminGroupHandler.handleCancel(ctx);
     });
-    bot.callbackQuery(/^reject:(\d+)$/, async (ctx) => {
-      const id = Number(ctx.match[1]);
-      await this.adminGroupHandler.handleReject(ctx, id);
+    bot.callbackQuery(/^reject:([a-z0-9]{20,30})$/i, async (ctx) => {
+      await this.adminGroupHandler.handleReject(ctx, ctx.match[1]);
     });
-    bot.callbackQuery(/^reject_confirm:(\d+)$/, async (ctx) => {
-      const id = Number(ctx.match[1]);
-      await this.adminGroupHandler.handleRejectConfirm(ctx, id);
+    bot.callbackQuery(/^reject_confirm:([a-z0-9]{20,30})$/i, async (ctx) => {
+      await this.adminGroupHandler.handleRejectConfirm(ctx, ctx.match[1]);
     });
-    bot.callbackQuery(/^reject_cancel:(\d+)$/, async (ctx) => {
+    bot.callbackQuery(/^reject_cancel:([a-z0-9]{20,30})$/i, async (ctx) => {
       await this.adminGroupHandler.handleCancel(ctx);
     });
 

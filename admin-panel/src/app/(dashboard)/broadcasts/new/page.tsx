@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useCreateBroadcast } from '@/lib/queries/useBroadcasts';
+import { MediaUploader } from '@/components/shared/media-uploader';
 import type { BroadcastFilter } from '@/types';
 
 const FILTERS: Array<{
@@ -29,13 +30,20 @@ export default function NewBroadcastPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<BroadcastFilter>('ALL');
   const [text, setText] = useState('');
+  const [mediaFileId, setMediaFileId] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const create = useCreateBroadcast();
 
   const submit = () => {
     create.mutate(
-      { filterType: filter, text },
+      {
+        filterType: filter,
+        text,
+        mediaFileId: mediaFileId ?? undefined,
+        mediaType: mediaType ?? undefined,
+      },
       {
         onSuccess: () => {
           setConfirmOpen(false);
@@ -44,6 +52,8 @@ export default function NewBroadcastPage() {
       },
     );
   };
+
+  const canSend = !!(text.trim() || mediaFileId);
 
   return (
     <>
@@ -94,15 +104,37 @@ export default function NewBroadcastPage() {
             </CardContent>
           </Card>
 
-          {/* Step 2: message */}
+          {/* Step 2: media (ixtiyoriy) */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle>2. Xabar</CardTitle>
+              <CardTitle>2. Media (ixtiyoriy)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MediaUploader
+                fileId={mediaFileId}
+                mediaType={mediaType}
+                onChange={(fid, mt) => {
+                  setMediaFileId(fid);
+                  setMediaType(mt);
+                }}
+              />
+              <p className="mt-2 text-xs text-muted-foreground">
+                Rasm, video, audio yoki hujjat. Matn caption sifatida ishlatiladi.
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Step 3: message */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>
+                3. {mediaFileId ? 'Caption' : 'Xabar'}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea
                 rows={8}
-                placeholder="Xabar matni (HTML qo'llab-quvvatlanadi: <b>, <i>, <u>, <a>)"
+                placeholder="Xabar matni (HTML: <b>, <i>, <u>, <a>)"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
@@ -116,10 +148,7 @@ export default function NewBroadcastPage() {
             <Button variant="outline" onClick={() => router.back()}>
               Bekor qilish
             </Button>
-            <Button
-              onClick={() => setConfirmOpen(true)}
-              disabled={!text.trim()}
-            >
+            <Button onClick={() => setConfirmOpen(true)} disabled={!canSend}>
               <Send className="h-4 w-4" />
               Yuborish
             </Button>

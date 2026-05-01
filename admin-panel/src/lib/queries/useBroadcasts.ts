@@ -10,6 +10,14 @@ export function useBroadcasts() {
   });
 }
 
+export function useBroadcast(id: string) {
+  return useQuery({
+    queryKey: ['broadcasts', id],
+    queryFn: () => api.broadcasts.getById(id),
+    enabled: !!id,
+  });
+}
+
 export function useCreateBroadcast() {
   const qc = useQueryClient();
   return useMutation({
@@ -29,10 +37,27 @@ export function useCreateBroadcast() {
   });
 }
 
+export function useEditBroadcast(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      text?: string;
+      mediaFileId?: string | null;
+      mediaType?: string | null;
+    }) => api.broadcasts.edit(id, input),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['broadcasts'] });
+      qc.invalidateQueries({ queryKey: ['broadcasts', id] });
+      toast.success("Tahrirlandi va foydalanuvchilarga yangilandi");
+    },
+    onError: (err) => toast.error(extractErrorMessage(err)),
+  });
+}
+
 export function useCancelBroadcast() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.broadcasts.cancel(id),
+    mutationFn: (id: string) => api.broadcasts.cancel(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broadcasts'] });
       toast.success('Broadcast bekor qilindi');

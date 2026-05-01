@@ -7,15 +7,22 @@ import type {
   Broadcast,
   BroadcastFilter,
   DashboardStats,
+  LeaderboardEntry,
   LoginResponse,
   Paginated,
   Payment,
   PaymentStatus,
+  PointsTransaction,
+  PointsTransactionType,
   Setting,
   TriggerType,
   User,
+  UserOverview,
   UserStatus,
   UsersStats,
+  UtmDailyMetric,
+  UtmFunnelMetrics,
+  UtmSource,
 } from '@/types';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
@@ -79,8 +86,46 @@ export const api = {
       const { data } = await http.get<Paginated<User>>('/users', { params });
       return data;
     },
-    getById: async (id: number): Promise<User> => {
+    getById: async (id: string): Promise<User> => {
       const { data } = await http.get<User>(`/users/${id}`);
+      return data;
+    },
+    overview: async (id: string): Promise<UserOverview> => {
+      const { data } = await http.get<UserOverview>(`/users/${id}/overview`);
+      return data;
+    },
+    pointsHistory: async (
+      id: string,
+      params?: { type?: PointsTransactionType; page?: number; limit?: number },
+    ): Promise<Paginated<PointsTransaction>> => {
+      const { data } = await http.get<Paginated<PointsTransaction>>(
+        `/users/${id}/points-history`,
+        { params },
+      );
+      return data;
+    },
+    referrals: async (
+      id: string,
+    ): Promise<{
+      items: User[];
+      stats: {
+        totalReferrals: number;
+        purchasedReferrals: number;
+        totalEarnedPoints: number;
+      };
+    }> => {
+      const { data } = await http.get(`/users/${id}/referrals`);
+      return data;
+    },
+    adjustPoints: async (
+      id: string,
+      amount: number,
+      reason?: string,
+    ): Promise<PointsTransaction> => {
+      const { data } = await http.post<PointsTransaction>(
+        `/users/${id}/adjust-points`,
+        { amount, reason },
+      );
       return data;
     },
     stats: async (): Promise<UsersStats> => {
@@ -98,17 +143,25 @@ export const api = {
       const { data } = await http.get<Paginated<Payment>>('/payments', { params });
       return data;
     },
-    getById: async (id: number): Promise<Payment> => {
+    getById: async (id: string): Promise<Payment> => {
       const { data } = await http.get<Payment>(`/payments/${id}`);
       return data;
     },
-    approve: async (id: number): Promise<unknown> => {
+    approve: async (id: string): Promise<unknown> => {
       const { data } = await http.post(`/payments/${id}/approve`);
       return data;
     },
-    reject: async (id: number, reason?: string): Promise<unknown> => {
+    reject: async (id: string, reason?: string): Promise<unknown> => {
       const { data } = await http.post(`/payments/${id}/reject`, { reason });
       return data;
+    },
+    /**
+     * Chek rasmiga URL yaratadi (img src uchun).
+     * Token query param sifatida uzatiladi (img tag header yubora olmaydi).
+     */
+    photoUrl: (id: string): string => {
+      const token = authStorage.getToken() ?? '';
+      return `${baseURL}/payments/${id}/photo?token=${encodeURIComponent(token)}`;
     },
     stats: async (params?: {
       from?: string;
@@ -145,6 +198,12 @@ export const api = {
       );
       return data;
     },
+    /** Welcome video URL — Telegram'dan stream proxy. Cache-buster bilan. */
+    welcomeVideoUrl: (cacheBuster?: string): string => {
+      const token = authStorage.getToken() ?? '';
+      const cb = cacheBuster ? `&v=${encodeURIComponent(cacheBuster)}` : '';
+      return `${baseURL}/settings/welcome-video?token=${encodeURIComponent(token)}${cb}`;
+    },
   },
 
   broadcasts: {
@@ -152,7 +211,7 @@ export const api = {
       const { data } = await http.get<Broadcast[]>('/broadcasts');
       return data;
     },
-    getById: async (id: number): Promise<Broadcast> => {
+    getById: async (id: string): Promise<Broadcast> => {
       const { data } = await http.get<Broadcast>(`/broadcasts/${id}`);
       return data;
     },
@@ -168,8 +227,34 @@ export const api = {
       const { data } = await http.post<Broadcast>('/broadcasts', input);
       return data;
     },
-    cancel: async (id: number): Promise<Broadcast> => {
+    cancel: async (id: string): Promise<Broadcast> => {
       const { data } = await http.delete<Broadcast>(`/broadcasts/${id}`);
+      return data;
+    },
+    edit: async (
+      id: string,
+      input: { text?: string; mediaFileId?: string | null; mediaType?: string | null },
+    ): Promise<Broadcast> => {
+      const { data } = await http.put<Broadcast>(`/broadcasts/${id}`, input);
+      return data;
+    },
+    /**
+     * Media yuklash (photo/video/document/audio).
+     * Telegram STORAGE_CHAT_ID ga yuboradi va file_id qaytaradi.
+     * Broadcast va auto-message ikkalasi uchun umumiy.
+     */
+    uploadMedia: async (
+      file: File,
+      type?: 'photo' | 'video' | 'document' | 'audio',
+    ): Promise<{ fileId: string; mediaType: string }> => {
+      const fd = new FormData();
+      fd.append('file', file);
+      if (type) fd.append('type', type);
+      const { data } = await http.post<{ fileId: string; mediaType: string }>(
+        '/broadcasts/upload-media',
+        fd,
+        { headers: { 'Content-Type': 'multipart/form-data' } },
+      );
       return data;
     },
   },
@@ -192,13 +277,13 @@ export const api = {
       return data;
     },
     update: async (
-      id: number,
+      id: string,
       input: Partial<AutoMessage>,
     ): Promise<AutoMessage> => {
       const { data } = await http.put<AutoMessage>(`/auto-messages/${id}`, input);
       return data;
     },
-    remove: async (id: number): Promise<{ ok: true }> => {
+    remove: async (id: string): Promise<{ ok: true }> => {
       const { data } = await http.delete<{ ok: true }>(`/auto-messages/${id}`);
       return data;
     },
@@ -223,6 +308,101 @@ export const api = {
         oldPassword,
         newPassword,
       });
+      return data;
+    },
+  },
+
+  leaderboard: {
+    top: async (limit = 100): Promise<{ items: LeaderboardEntry[] }> => {
+      const { data } = await http.get<{ items: LeaderboardEntry[] }>(
+        '/leaderboard',
+        { params: { limit } },
+      );
+      return data;
+    },
+  },
+
+  referrals: {
+    top: async (
+      limit = 20,
+    ): Promise<
+      Array<{
+        userId: string;
+        username: string | null;
+        firstName: string | null;
+        lastName: string | null;
+        referralCount: number;
+        pointsEarned: number;
+      }>
+    > => {
+      const { data } = await http.get('/referrals/top', { params: { limit } });
+      return data;
+    },
+  },
+
+  utm: {
+    list: async (params?: { isActive?: boolean }): Promise<UtmSource[]> => {
+      const { data } = await http.get<UtmSource[]>('/utm-sources', {
+        params: params?.isActive !== undefined
+          ? { isActive: String(params.isActive) }
+          : undefined,
+      });
+      return data;
+    },
+    getById: async (id: string): Promise<UtmSource> => {
+      const { data } = await http.get<UtmSource>(`/utm-sources/${id}`);
+      return data;
+    },
+    create: async (input: {
+      code: string;
+      name: string;
+      description?: string;
+    }): Promise<UtmSource> => {
+      const { data } = await http.post<UtmSource>('/utm-sources', input);
+      return data;
+    },
+    update: async (
+      id: string,
+      input: { name?: string; description?: string; isActive?: boolean },
+    ): Promise<UtmSource> => {
+      const { data } = await http.put<UtmSource>(`/utm-sources/${id}`, input);
+      return data;
+    },
+    deactivate: async (id: string): Promise<UtmSource> => {
+      const { data } = await http.delete<UtmSource>(`/utm-sources/${id}`);
+      return data;
+    },
+    funnel: async (params?: {
+      from?: string;
+      to?: string;
+      utmSourceId?: string | null;
+    }): Promise<UtmFunnelMetrics[]> => {
+      const queryParams: Record<string, string> = {};
+      if (params?.from) queryParams.from = params.from;
+      if (params?.to) queryParams.to = params.to;
+      if (params?.utmSourceId === null) queryParams.utmSourceId = 'null';
+      else if (params?.utmSourceId) queryParams.utmSourceId = params.utmSourceId;
+      const { data } = await http.get<UtmFunnelMetrics[]>(
+        '/utm-analytics/funnel',
+        { params: queryParams },
+      );
+      return data;
+    },
+    daily: async (params: {
+      from: string;
+      to: string;
+      utmSourceId?: string | null;
+    }): Promise<UtmDailyMetric[]> => {
+      const queryParams: Record<string, string> = {
+        from: params.from,
+        to: params.to,
+      };
+      if (params.utmSourceId === null) queryParams.utmSourceId = 'null';
+      else if (params.utmSourceId) queryParams.utmSourceId = params.utmSourceId;
+      const { data } = await http.get<UtmDailyMetric[]>(
+        '/utm-analytics/daily',
+        { params: queryParams },
+      );
       return data;
     },
   },

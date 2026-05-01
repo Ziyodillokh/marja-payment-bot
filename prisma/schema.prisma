@@ -1,5 +1,11 @@
 // CourseBot Prisma schema
 // Bot va admin panel ikkalasi ham shu DB'dan foydalanadi.
+//
+// PRIMARY KEY: barcha modellarda CUID ishlatamiz (24 belgi, sortable, URL-safe).
+// UUID o'rniga CUID afzalliklari:
+//   - Qisqaroq (24 vs 36 char)
+//   - Vaqt bo'yicha tartiblanadi (DB index uchun yaxshi)
+//   - URL-friendly
 
 generator client {
   provider = "prisma-client-js"
@@ -50,18 +56,18 @@ enum TriggerType {
 }
 
 enum PointsTransactionType {
-  REFERRAL_START      // referral start bosgani uchun
-  REFERRAL_PURCHASE   // referral kurs sotib olgani uchun
-  COMMENT             // izoh yozgani uchun
-  REACTION            // reaksiya bosgani uchun
-  REACTION_REMOVED    // reaksiya olib tashlangani uchun
-  ADMIN_ADJUSTMENT    // admin qo'lda qo'shgan/olgan
+  REFERRAL_START
+  REFERRAL_PURCHASE
+  COMMENT
+  REACTION
+  REACTION_REMOVED
+  ADMIN_ADJUSTMENT
 }
 
 // ──────────────── MODELS ────────────────
 
 model User {
-  id               Int        @id @default(autoincrement())
+  id               String     @id @default(cuid())
   telegramId       BigInt     @unique
   username         String?
   firstName        String?
@@ -75,13 +81,18 @@ model User {
 
   // ───── Gamifikatsiya ─────
   points           Int        @default(0)
-  referredById     Int?
+  referredById     String?
   referredBy       User?      @relation("UserReferrals", fields: [referredById], references: [id])
   referrals        User[]     @relation("UserReferrals")
 
   pointsTransactions PointsTransaction[]
   reactionLogs       ReactionLog[]
   commentLogs        CommentLog[]
+
+  // ───── UTM tracking (first-touch attribution) ─────
+  utmSourceId      String?
+  utmSource        UtmSource? @relation(fields: [utmSourceId], references: [id])
+  utmRawParam      String?    // raw start parameter (debugging va kelajakdagi parametrlar uchun)
 
   payments         Payment[]
   autoMessageLogs  AutoMessageLog[]
@@ -93,16 +104,19 @@ model User {
   @@index([createdAt])
   @@index([points])
   @@index([referredById])
+  @@index([utmSourceId])
+  @@index([utmSourceId, status])
+  @@index([utmSourceId, createdAt])
 }
 
 model Payment {
-  id              Int           @id @default(autoincrement())
-  userId          Int
+  id              String        @id @default(cuid())
+  userId          String
   user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount          Decimal       @db.Decimal(12, 2)
   photoFileId     String
   status          PaymentStatus @default(PENDING)
-  reviewedById    Int?
+  reviewedById    String?
   reviewedAt      DateTime?
   rejectionReason String?
   groupChatId     BigInt?
@@ -116,14 +130,14 @@ model Payment {
 }
 
 model Setting {
-  id        Int      @id @default(autoincrement())
+  id        String   @id @default(cuid())
   key       String   @unique
   value     String   @db.Text
   updatedAt DateTime @updatedAt
 }
 
 model Admin {
-  id           Int      @id @default(autoincrement())
+  id           String   @id @default(cuid())
   username     String   @unique
   passwordHash String
   isActive     Boolean  @default(true)
@@ -132,13 +146,13 @@ model Admin {
 }
 
 model Broadcast {
-  id          Int             @id @default(autoincrement())
+  id          String          @id @default(cuid())
   text        String          @db.Text
   mediaFileId String?
   mediaType   String?
   parseMode   String?         @default("HTML")
   filterType  BroadcastFilter
-  userIds     Int[]           @default([])
+  userIds     String[]        @default([])
   status      BroadcastStatus @default(PENDING)
   totalCount  Int             @default(0)
   sentCount   Int             @default(0)
@@ -146,15 +160,35 @@ model Broadcast {
   scheduledAt DateTime?
   startedAt   DateTime?
   completedAt DateTime?
-  createdById Int?
+  createdById String?
   createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt @default(now())
+
+  recipients  BroadcastRecipient[]
 
   @@index([status])
   @@index([createdAt])
 }
 
+model BroadcastRecipient {
+  id          String    @id @default(cuid())
+  broadcastId String
+  broadcast   Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  userId      String
+  telegramId  BigInt
+  messageId   Int?
+  status      String    @default("PENDING")
+  errorReason String?
+  sentAt      DateTime?
+  editedAt    DateTime?
+
+  @@unique([broadcastId, userId])
+  @@index([broadcastId])
+  @@index([userId])
+}
+
 model AutoMessage {
-  id           Int         @id @default(autoincrement())
+  id           String      @id @default(cuid())
   name         String
   triggerType  TriggerType
   triggerAfter Int
@@ -171,10 +205,10 @@ model AutoMessage {
 }
 
 model AutoMessageLog {
-  id            Int         @id @default(autoincrement())
-  autoMessageId Int
+  id            String      @id @default(cuid())
+  autoMessageId String
   autoMessage   AutoMessage @relation(fields: [autoMessageId], references: [id], onDelete: Cascade)
-  userId        Int
+  userId        String
   user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   sentAt        DateTime    @default(now())
 
@@ -185,26 +219,26 @@ model AutoMessageLog {
 // ──────────────── GAMIFIKATSIYA ────────────────
 
 model PointsTransaction {
-  id               Int                   @id @default(autoincrement())
-  userId           Int
+  id               String                @id @default(cuid())
+  userId           String
   user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  amount           Int                   // musbat (qo'shildi) yoki manfiy (olindi)
+  amount           Int
   type             PointsTransactionType
   description      String?
-  relatedUserId    Int?                  // referral bo'lsa, qaysi user
-  relatedMessageId BigInt?               // izoh/reaksiya bo'lsa
+  relatedUserId    String?
+  relatedMessageId BigInt?
   createdAt        DateTime              @default(now())
 
   @@index([userId])
   @@index([createdAt])
   @@index([type])
-  // Idempotency uchun: bitta referee uchun bitta REFERRAL_PURCHASE
+  // Idempotency: bitta referee uchun bitta REFERRAL_PURCHASE
   @@unique([userId, type, relatedUserId], name: "uniq_referral_purchase")
 }
 
 model ReactionLog {
-  id            Int      @id @default(autoincrement())
-  userId        Int
+  id            String   @id @default(cuid())
+  userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatId        BigInt
   messageId     BigInt
@@ -218,9 +252,27 @@ model ReactionLog {
   @@index([chatId, messageId])
 }
 
+// ──────────────── UTM TRACKING ────────────────
+
+model UtmSource {
+  id          String   @id @default(cuid())
+  code        String   @unique          // qisqa kod: "fb", "site1", "instagram"
+  name        String                    // ko'rsatish nomi: "Facebook Ads"
+  description String?
+  isActive    Boolean  @default(true)
+  createdById String?                   // qaysi admin yaratgan
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
 model CommentLog {
-  id            Int      @id @default(autoincrement())
-  userId        Int
+  id            String   @id @default(cuid())
+  userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   chatId        BigInt
   messageId     BigInt

@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { PaymentStatusBadge } from '@/components/shared/status-badge';
 import { PaymentActionDialog } from '@/components/payments/payment-action-dialog';
+import { ReceiptImage } from '@/components/shared/receipt-image';
 import {
   useApprovePayment,
   usePayments,
@@ -65,10 +66,20 @@ export default function PaymentsPage() {
   const columns: DataTableColumn<Payment>[] = [
     {
       key: 'id',
-      header: 'ID',
+      header: '№',
       headerClassName: 'w-16',
       cell: (p) => (
         <span className="font-mono text-xs text-muted-foreground">#{p.id}</span>
+      ),
+    },
+    {
+      key: 'receipt',
+      header: 'Chek',
+      headerClassName: 'w-16',
+      cell: (p) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <ReceiptImage paymentId={p.id} thumbnail />
+        </div>
       ),
     },
     {
@@ -112,7 +123,7 @@ export default function PaymentsPage() {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Holat',
       cell: (p) => <PaymentStatusBadge status={p.status} />,
     },
     {

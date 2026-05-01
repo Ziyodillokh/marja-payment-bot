@@ -31,8 +31,8 @@ import {
 } from '../common/enums/queue-names.enum';
 
 interface SendOnePayload {
-  broadcastId: number;
-  userId: number;
+  broadcastId: string;
+  userId: string;
 }
 
 const PER_MESSAGE_DELAY_MS = 50; // ~20 msg/sec — Telegram rate limitidan past
@@ -54,16 +54,67 @@ export class BroadcastProcessor extends WorkerHost {
 
   async process(job: Job): Promise<void> {
     if (job.name === BROADCAST_JOBS.START) {
-      await this.handleStart(job.data.broadcastId as number);
+      await this.handleStart(job.data.broadcastId as string);
       return;
     }
     if (job.name === BROADCAST_JOBS.SEND_ONE) {
       await this.handleSendOne(job.data as SendOnePayload);
       return;
     }
+    if (job.name === 'edit-broadcast-message') {
+      await this.handleEditOne(
+        job.data as { broadcastId: string; recipientId: string },
+      );
+      return;
+    }
   }
 
-  private async handleStart(broadcastId: number): Promise<void> {
+  /**
+   * Bitta adresatdagi yuborilgan xabarni tahrirlash.
+   * - text: editMessageText
+   * - media (caption): editMessageCaption
+   */
+  private async handleEditOne(payload: {
+    broadcastId: string;
+    recipientId: string;
+  }): Promise<void> {
+    const { broadcastId, recipientId } = payload;
+    const [broadcast, recipient] = await Promise.all([
+      this.prisma.broadcast.findUnique({ where: { id: broadcastId } }),
+      this.prisma.broadcastRecipient.findUnique({ where: { id: recipientId } }),
+    ]);
+    if (!broadcast || !recipient || !recipient.messageId) return;
+
+    const chatId = recipient.telegramId.toString();
+    const api = this.botService.bot.api;
+    const parseMode = (broadcast.parseMode ?? 'HTML') as 'HTML' | 'MarkdownV2';
+
+    try {
+      if (broadcast.mediaFileId) {
+        await api.editMessageCaption(chatId, recipient.messageId, {
+          caption: broadcast.text,
+          parse_mode: parseMode,
+        });
+      } else {
+        await api.editMessageText(chatId, recipient.messageId, broadcast.text, {
+          parse_mode: parseMode,
+        });
+      }
+      await this.prisma.broadcastRecipient.update({
+        where: { id: recipientId },
+        data: { status: 'EDITED', editedAt: new Date() },
+      });
+    } catch (err) {
+      // Telegram "message is not modified" — bu xato emas, xuddi shu matn.
+      const msg = (err as Error).message;
+      if (msg.includes('message is not modified')) return;
+      this.logger.warn(
+        `editMessage failed for recipient #${recipientId}: ${msg}`,
+      );
+    }
+  }
+
+  private async handleStart(broadcastId: string): Promise<void> {
     const broadcast = await this.prisma.broadcast.findUnique({
       where: { id: broadcastId },
     });
@@ -97,7 +148,7 @@ export class BroadcastProcessor extends WorkerHost {
         { broadcastId, userId } satisfies SendOnePayload,
         {
           delay,
-          jobId: `bc:${broadcastId}:u:${userId}`,
+          jobId: `bc_${broadcastId}_u_${userId}`,
         },
       );
       delay += PER_MESSAGE_DELAY_MS;
@@ -124,16 +175,42 @@ export class BroadcastProcessor extends WorkerHost {
     }
 
     try {
-      await this.send(user.telegramId, broadcast);
+      const messageId = await this.send(user.telegramId, broadcast);
       await this.service.incrementSent(broadcastId);
+      // Recipient log — keyinchalik edit qilishda kerak.
+      await this.prisma.broadcastRecipient.upsert({
+        where: { broadcastId_userId: { broadcastId, userId } },
+        create: {
+          broadcastId,
+          userId,
+          telegramId: user.telegramId,
+          messageId,
+          status: 'SENT',
+          sentAt: new Date(),
+        },
+        update: { messageId, status: 'SENT', sentAt: new Date() },
+      });
     } catch (err) {
+      let errorReason = (err as Error).message;
       if (err instanceof GrammyError) {
         if (err.error_code === 403) {
           await this.users.markBlocked(userId);
           this.logger.warn(`User #${userId} blocked — marked BLOCKED`);
         }
+        errorReason = `${err.error_code}: ${err.description}`;
       }
       await this.service.incrementFailed(broadcastId);
+      await this.prisma.broadcastRecipient.upsert({
+        where: { broadcastId_userId: { broadcastId, userId } },
+        create: {
+          broadcastId,
+          userId,
+          telegramId: user.telegramId,
+          status: 'FAILED',
+          errorReason,
+        },
+        update: { status: 'FAILED', errorReason },
+      });
     } finally {
       await this.maybeComplete(broadcast);
     }
@@ -155,19 +232,20 @@ export class BroadcastProcessor extends WorkerHost {
     }
   }
 
+  /** @returns Telegram message_id (edit uchun kerak) */
   private async send(
     telegramId: bigint,
     broadcast: Broadcast,
-  ): Promise<void> {
+  ): Promise<number> {
     const chatId = telegramId.toString();
     const api = this.botService.bot.api;
     const parseMode = broadcast.parseMode ?? 'HTML';
 
     if (!broadcast.mediaFileId) {
-      await api.sendMessage(chatId, broadcast.text, {
+      const m = await api.sendMessage(chatId, broadcast.text, {
         parse_mode: parseMode as 'HTML' | 'MarkdownV2',
       });
-      return;
+      return m.message_id;
     }
 
     const opts = {
@@ -175,23 +253,25 @@ export class BroadcastProcessor extends WorkerHost {
       parse_mode: parseMode as 'HTML' | 'MarkdownV2',
     };
 
+    let m;
     switch (broadcast.mediaType) {
       case 'photo':
-        await api.sendPhoto(chatId, broadcast.mediaFileId, opts);
+        m = await api.sendPhoto(chatId, broadcast.mediaFileId, opts);
         break;
       case 'video':
-        await api.sendVideo(chatId, broadcast.mediaFileId, opts);
+        m = await api.sendVideo(chatId, broadcast.mediaFileId, opts);
         break;
       case 'document':
-        await api.sendDocument(chatId, broadcast.mediaFileId, opts);
+        m = await api.sendDocument(chatId, broadcast.mediaFileId, opts);
         break;
       case 'audio':
-        await api.sendAudio(chatId, broadcast.mediaFileId, opts);
+        m = await api.sendAudio(chatId, broadcast.mediaFileId, opts);
         break;
       default:
-        await api.sendMessage(chatId, broadcast.text, {
+        m = await api.sendMessage(chatId, broadcast.text, {
           parse_mode: parseMode as 'HTML' | 'MarkdownV2',
         });
     }
+    return m.message_id;
   }
 }

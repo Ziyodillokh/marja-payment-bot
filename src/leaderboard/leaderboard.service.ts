@@ -46,7 +46,7 @@ export class LeaderboardService {
    * Tenglikda kichikroq id'li yuqori turadi (orderBy bilan mos).
    * @returns 1, 2, 3 ... yoki 0 (user topilmasa yoki bloklangan bo'lsa).
    */
-  async getUserRank(userId: number): Promise<number> {
+  async getUserRank(userId: string): Promise<number> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { id: true, points: true, status: true },

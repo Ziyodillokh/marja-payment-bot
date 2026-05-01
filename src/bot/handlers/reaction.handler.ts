@@ -55,7 +55,12 @@ export class ReactionHandler {
     if (!hadReaction && !hasReaction) return;
     if (hadReaction && hasReaction) {
       // O'zgartirish (👍 → ❤️) — ball o'zgarmaydi, faqat emoji'ni yangilaymiz.
-      await this.updateEmoji(user.id, reaction.chat.id, reaction.message_id, newReactions[0]);
+      await this.updateEmoji(
+        user.id,
+        reaction.chat.id,
+        reaction.message_id,
+        firstEmoji(newReactions),
+      );
       return;
     }
 
@@ -74,7 +79,7 @@ export class ReactionHandler {
   // ──────────────── HELPERS ────────────────
 
   private async handleAdded(
-    userId: number,
+    userId: string,
     chatId: number,
     messageId: number,
     emoji: string,
@@ -127,7 +132,7 @@ export class ReactionHandler {
   }
 
   private async handleRemoved(
-    userId: number,
+    userId: string,
     chatId: number,
     messageId: number,
   ): Promise<void> {
@@ -144,7 +149,7 @@ export class ReactionHandler {
   }
 
   private async updateEmoji(
-    userId: number,
+    userId: string,
     chatId: number,
     messageId: number,
     newEmoji: string,
@@ -157,7 +162,7 @@ export class ReactionHandler {
     });
   }
 
-  private async findLog(userId: number, chatId: number, messageId: number) {
+  private async findLog(userId: string, chatId: number, messageId: number) {
     return this.prisma.reactionLog.findUnique({
       where: {
         userId_chatId_messageId: {

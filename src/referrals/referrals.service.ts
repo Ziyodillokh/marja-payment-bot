@@ -19,7 +19,7 @@ export interface ReferralStats {
 }
 
 export interface TopReferrer {
-  userId: number;
+  userId: string;
   username: string | null;
   firstName: string | null;
   lastName: string | null;
@@ -37,20 +37,20 @@ export class ReferralsService {
 
   // ──────────────── KOD KONVERSIYASI ────────────────
 
-  buildReferralLink(botUsername: string, userId: number): string {
+  buildReferralLink(botUsername: string, userId: string): string {
     return `https://t.me/${botUsername}?start=${REF_PREFIX}${userId}`;
   }
 
   /**
-   * /start payload (`ref_123`) dan referrer userId ni ajratib oladi.
-   * Noto'g'ri format yoki referral bo'lmasa null.
+   * /start payload (`ref_<cuid>`) dan referrer userId ni ajratib oladi.
+   * Cuid format: 24-25 belgi, faqat alphanumeric (a-z, 0-9).
    */
-  parseReferralCode(payload: string | undefined | null): number | null {
+  parseReferralCode(payload: string | undefined | null): string | null {
     if (!payload || !payload.startsWith(REF_PREFIX)) return null;
-    const rest = payload.slice(REF_PREFIX.length);
-    const id = Number(rest);
-    if (!Number.isInteger(id) || id <= 0) return null;
-    return id;
+    const rest = payload.slice(REF_PREFIX.length).trim();
+    // Cuid: 20-30 belgi, lowercase alphanumeric
+    if (!/^[a-z0-9]{20,30}$/i.test(rest)) return null;
+    return rest;
   }
 
   // ──────────────── REFERRER'NI O'RNATISH ────────────────
@@ -64,8 +64,8 @@ export class ReferralsService {
    * @returns referrer User obyekti (muvaffaqiyatli o'rnatilgan bo'lsa) yoki null
    */
   async acceptReferrer(
-    userId: number,
-    referrerId: number,
+    userId: string,
+    referrerId: string,
   ): Promise<User | null> {
     if (userId === referrerId) {
       this.logger.warn(`Self-referral attempt: user=${userId}`);
@@ -100,13 +100,13 @@ export class ReferralsService {
 
   // ──────────────── STATISTIKA ────────────────
 
-  async getReferralCount(userId: number): Promise<number> {
+  async getReferralCount(userId: string): Promise<number> {
     return this.prisma.user.count({
       where: { referredById: userId },
     });
   }
 
-  async getStats(userId: number): Promise<ReferralStats> {
+  async getStats(userId: string): Promise<ReferralStats> {
     const [totalReferrals, purchasedReferrals, earnedAgg] = await Promise.all([
       this.prisma.user.count({ where: { referredById: userId } }),
       this.prisma.user.count({
@@ -133,7 +133,7 @@ export class ReferralsService {
     };
   }
 
-  async listReferralsOf(userId: number): Promise<User[]> {
+  async listReferralsOf(userId: string): Promise<User[]> {
     return this.prisma.user.findMany({
       where: { referredById: userId },
       orderBy: { createdAt: 'desc' },
@@ -147,7 +147,7 @@ export class ReferralsService {
     // tipidagi ball summasi.
     const rows = await this.prisma.$queryRaw<
       Array<{
-        userId: number;
+        userId: string;
         username: string | null;
         firstName: string | null;
         lastName: string | null;

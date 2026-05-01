@@ -16,7 +16,7 @@ export function usePayments(filter: PaymentsFilter) {
   });
 }
 
-export function usePayment(id: number) {
+export function usePayment(id: string) {
   return useQuery({
     queryKey: ['payments', id],
     queryFn: () => api.payments.getById(id),
@@ -40,7 +40,7 @@ function invalidate(queryClient: ReturnType<typeof useQueryClient>) {
 export function useApprovePayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.payments.approve(id),
+    mutationFn: (id: string) => api.payments.approve(id),
     onSuccess: () => {
       invalidate(qc);
       toast.success("To'lov tasdiqlandi");
@@ -52,7 +52,7 @@ export function useApprovePayment() {
 export function useRejectPayment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
+    mutationFn: ({ id, reason }: { id: string; reason?: string }) =>
       api.payments.reject(id, reason),
     onSuccess: () => {
       invalidate(qc);

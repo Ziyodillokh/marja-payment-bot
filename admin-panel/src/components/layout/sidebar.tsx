@@ -9,8 +9,10 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  Link2,
   LogOut,
   Settings as SettingsIcon,
+  TrendingUp,
   Users as UsersIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,6 +25,8 @@ const NAV: Array<{ href: string; label: string; icon: typeof UsersIcon }> = [
   { href: '/broadcasts', label: 'Xabarlar', icon: Bell },
   { href: '/auto-messages', label: 'Avto xabarlar', icon: Clock },
   { href: '/content', label: 'Kontent', icon: FileText },
+  { href: '/utm-sources', label: 'UTM manbalar', icon: Link2 },
+  { href: '/utm-analytics', label: 'UTM statistika', icon: TrendingUp },
   { href: '/statistics', label: 'Statistika', icon: BarChart3 },
 ];
 

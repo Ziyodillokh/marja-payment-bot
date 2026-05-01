@@ -18,6 +18,7 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 
 export interface PaymentListFilter {
   status?: PaymentStatus;
+  userId?: string;
   page?: number;
   limit?: number;
 }
@@ -51,7 +52,7 @@ export class PaymentsService {
   }
 
   async setGroupMessage(
-    paymentId: number,
+    paymentId: string,
     groupChatId: bigint,
     groupMessageId: number,
   ): Promise<void> {
@@ -68,7 +69,7 @@ export class PaymentsService {
    * `reviewedById` ixtiyoriy (botdan kelganda admin Telegram ID emas, NULL).
    * Tashqi side-effect (kanalga qo'shish, xabar yuborish) BOT yoki API qatlamida.
    */
-  async approve(paymentId: number, reviewedById?: number): Promise<Payment> {
+  async approve(paymentId: string, reviewedById?: string): Promise<Payment> {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id: paymentId },
@@ -104,8 +105,8 @@ export class PaymentsService {
   }
 
   async reject(
-    paymentId: number,
-    reviewedById?: number,
+    paymentId: string,
+    reviewedById?: string,
     reason?: string,
   ): Promise<Payment> {
     return this.prisma.$transaction(async (tx) => {
@@ -143,14 +144,14 @@ export class PaymentsService {
 
   // ──────────── ADMIN PANEL ────────────
 
-  async findById(id: number): Promise<Payment | null> {
+  async findById(id: string): Promise<Payment | null> {
     return this.prisma.payment.findUnique({
       where: { id },
       include: { user: true },
     });
   }
 
-  async getByIdOrThrow(id: number): Promise<Payment> {
+  async getByIdOrThrow(id: string): Promise<Payment> {
     const p = await this.prisma.payment.findUnique({ where: { id } });
     if (!p) throw new NotFoundException(`Payment #${id} not found`);
     return p;
@@ -167,6 +168,7 @@ export class PaymentsService {
 
     const where: Prisma.PaymentWhereInput = {};
     if (filter.status) where.status = filter.status;
+    if (filter.userId) where.userId = filter.userId;
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({
@@ -200,6 +202,7 @@ export class PaymentsService {
     const grouped = await this.prisma.payment.groupBy({
       by: ['status'],
       where,
+      orderBy: { status: 'asc' },
       _count: { _all: true },
       _sum: { amount: true },
     });
@@ -212,20 +215,21 @@ export class PaymentsService {
     let approvedAmount = new Prisma.Decimal(0);
 
     for (const g of grouped) {
-      total += g._count._all;
-      const amount = g._sum.amount ?? new Prisma.Decimal(0);
+      const count = g._count?._all ?? 0;
+      total += count;
+      const amount = g._sum?.amount ?? new Prisma.Decimal(0);
       totalAmount = totalAmount.plus(amount);
 
       switch (g.status) {
         case PaymentStatus.PENDING:
-          pending = g._count._all;
+          pending = count;
           break;
         case PaymentStatus.APPROVED:
-          approved = g._count._all;
+          approved = count;
           approvedAmount = amount;
           break;
         case PaymentStatus.REJECTED:
-          rejected = g._count._all;
+          rejected = count;
           break;
       }
     }

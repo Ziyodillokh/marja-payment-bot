@@ -53,7 +53,7 @@ export class AdminGroupHandler {
 
   // ─────────── 1-bosqich: TASDIQLASH/RAD ETISH dialogi ───────────
 
-  async handleApprove(ctx: BotContext, paymentId: number): Promise<void> {
+  async handleApprove(ctx: BotContext, paymentId: string): Promise<void> {
     if (!(await this.ensureAdmin(ctx))) return;
     await ctx.answerCallbackQuery();
     await ctx.reply(
@@ -62,7 +62,7 @@ export class AdminGroupHandler {
     );
   }
 
-  async handleReject(ctx: BotContext, paymentId: number): Promise<void> {
+  async handleReject(ctx: BotContext, paymentId: string): Promise<void> {
     if (!(await this.ensureAdmin(ctx))) return;
     await ctx.answerCallbackQuery();
     await ctx.reply(
@@ -87,7 +87,7 @@ export class AdminGroupHandler {
 
   async handleApproveConfirm(
     ctx: BotContext,
-    paymentId: number,
+    paymentId: string,
   ): Promise<void> {
     if (!(await this.ensureAdmin(ctx))) return;
     await ctx.answerCallbackQuery();
@@ -117,7 +117,7 @@ export class AdminGroupHandler {
 
   async handleRejectConfirm(
     ctx: BotContext,
-    paymentId: number,
+    paymentId: string,
   ): Promise<void> {
     if (!(await this.ensureAdmin(ctx))) return;
     await ctx.answerCallbackQuery();

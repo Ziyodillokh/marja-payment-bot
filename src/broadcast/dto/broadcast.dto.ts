@@ -2,7 +2,6 @@ import {
   ArrayUnique,
   IsArray,
   IsEnum,
-  IsInt,
   IsOptional,
   IsString,
   ValidateIf,
@@ -31,8 +30,8 @@ export class CreateBroadcastDto {
   @ValidateIf((o: CreateBroadcastDto) => o.filterType === BroadcastFilter.SPECIFIC)
   @IsArray()
   @ArrayUnique()
-  @IsInt({ each: true })
-  userIds?: number[];
+  @IsString({ each: true })
+  userIds?: string[];
 
   @IsOptional()
   scheduledAt?: Date;

@@ -19,8 +19,8 @@ import {
 } from '../common/enums/queue-names.enum';
 
 export interface AutoMessageJobPayload {
-  autoMessageId: number;
-  userId: number;
+  autoMessageId: string;
+  userId: string;
 }
 
 @Injectable()
@@ -41,7 +41,7 @@ export class AutoMessagesService {
     });
   }
 
-  async getById(id: number): Promise<AutoMessage> {
+  async getById(id: string): Promise<AutoMessage> {
     const m = await this.prisma.autoMessage.findUnique({ where: { id } });
     if (!m) throw new NotFoundException(`AutoMessage #${id} not found`);
     return m;
@@ -61,7 +61,7 @@ export class AutoMessagesService {
     });
   }
 
-  async update(id: number, dto: UpdateAutoMessageDto): Promise<AutoMessage> {
+  async update(id: string, dto: UpdateAutoMessageDto): Promise<AutoMessage> {
     await this.getById(id);
     return this.prisma.autoMessage.update({
       where: { id },
@@ -69,7 +69,7 @@ export class AutoMessagesService {
     });
   }
 
-  async remove(id: number): Promise<void> {
+  async remove(id: string): Promise<void> {
     await this.getById(id);
     await this.prisma.autoMessage.delete({ where: { id } });
     // Pending jobs processor'da isActive tekshiruvi orqali skip bo'ladi.
@@ -83,7 +83,7 @@ export class AutoMessagesService {
    * dublikat trigger kelganda eski job overwrite bo'ladi.
    */
   async scheduleForUser(
-    userId: number,
+    userId: string,
     triggerType: TriggerType,
   ): Promise<void> {
     const messages = await this.prisma.autoMessage.findMany({
@@ -91,7 +91,7 @@ export class AutoMessagesService {
     });
 
     for (const m of messages) {
-      const jobId = `am:${m.id}:u:${userId}`;
+      const jobId = `am_${m.id}_u_${userId}`;
       try {
         await this.queue.add(
           AUTO_MESSAGE_JOBS.SEND,
@@ -112,14 +112,14 @@ export class AutoMessagesService {
 
   // ──────────── PROCESSOR ICHIDA ISHLATISH ────────────
 
-  async hasBeenSent(autoMessageId: number, userId: number): Promise<boolean> {
+  async hasBeenSent(autoMessageId: string, userId: string): Promise<boolean> {
     const log = await this.prisma.autoMessageLog.findUnique({
       where: { autoMessageId_userId: { autoMessageId, userId } },
     });
     return !!log;
   }
 
-  async logSent(autoMessageId: number, userId: number): Promise<void> {
+  async logSent(autoMessageId: string, userId: string): Promise<void> {
     await this.prisma.autoMessageLog.create({
       data: { autoMessageId, userId },
     });

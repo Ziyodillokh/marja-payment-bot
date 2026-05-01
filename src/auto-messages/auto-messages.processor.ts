@@ -15,6 +15,7 @@ import {
   AutoMessageJobPayload,
   AutoMessagesService,
 } from './auto-messages.service';
+import { AutoMessagesScheduler } from './auto-messages.scheduler';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { BotService } from '../bot/bot.service';
@@ -32,11 +33,18 @@ export class AutoMessagesProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
     private readonly botService: BotService,
+    private readonly scheduler: AutoMessagesScheduler,
   ) {
     super();
   }
 
   async process(job: Job<AutoMessageJobPayload>): Promise<void> {
+    // Scheduler tick — har 1 daqiqada ishga tushadi.
+    if (job.name === 'auto-message-scheduler-tick') {
+      await this.scheduler.runTick();
+      return;
+    }
+
     if (job.name !== AUTO_MESSAGE_JOBS.SEND) return;
 
     const { autoMessageId, userId } = job.data;

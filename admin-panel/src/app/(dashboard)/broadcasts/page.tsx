@@ -70,7 +70,7 @@ export default function BroadcastsPage() {
     },
     {
       key: 'status',
-      header: 'Status',
+      header: 'Holat',
       cell: (b) => <BroadcastStatusBadge status={b.status} />,
     },
     {
@@ -104,6 +104,9 @@ export default function BroadcastsPage() {
         data={data}
         isLoading={isLoading}
         rowKey={(b) => b.id}
+        onRowClick={(b) => {
+          window.location.href = `/broadcasts/${b.id}`;
+        }}
         emptyTitle="Hali broadcast yuborilmagan"
         emptyDescription="Yangi broadcast tugmasini bosing"
       />

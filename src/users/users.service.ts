@@ -9,6 +9,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 export interface UserListFilter {
   status?: UserStatus;
   search?: string; // username, ism, telefon bo'yicha
+  // UTM filter: cuid string (bitta source) | null (direct, source'siz) | undefined (hammasi)
+  utmSourceId?: string | null;
   page?: number;
   limit?: number;
 }
@@ -62,6 +64,11 @@ export class UsersService {
           lastName: dto.lastName ?? null,
           languageCode: dto.languageCode ?? null,
           status: UserStatus.NEW,
+          // ───── First-touch UTM attribution ─────
+          // Faqat YANGI user yaratilganda yoziladi.
+          // Mavjud user qayta /start bossa, eski source'i o'zgarmaydi.
+          utmSourceId: dto.utmSourceId ?? null,
+          utmRawParam: dto.utmRawParam ?? null,
         },
       });
       return { user, isNew: true };
@@ -92,17 +99,39 @@ export class UsersService {
     return this.prisma.user.findUnique({ where: { telegramId } });
   }
 
-  async findById(id: number): Promise<User | null> {
+  /**
+   * UTM source'ni FAQAT mavjud bo'lmagan paytda yozadi (first-touch).
+   * Bu update boshqa /start chaqiruvlarida ham bezarar — utmSourceId allaqachon
+   * o'rnatilgan bo'lsa, hech narsa o'zgarmaydi.
+   *
+   * `updateMany + where: { utmSourceId: null }` atomik tarzda first-touch'ni kafolatlaydi.
+   */
+  async setUtmSourceIfMissing(
+    userId: string,
+    utmSourceId: string,
+    rawParam: string,
+  ): Promise<boolean> {
+    const result = await this.prisma.user.updateMany({
+      where: { id: userId, utmSourceId: null },
+      data: { utmSourceId, utmRawParam: rawParam },
+    });
+    return result.count > 0;
+  }
+
+  async findById(id: string): Promise<User | null> {
     return this.prisma.user.findUnique({ where: { id } });
   }
 
-  async getByIdOrThrow(id: number): Promise<User> {
-    const u = await this.prisma.user.findUnique({ where: { id } });
+  async getByIdOrThrow(id: string): Promise<User> {
+    const u = await this.prisma.user.findUnique({
+      where: { id },
+      include: { utmSource: { select: { id: true, code: true, name: true } } },
+    });
     if (!u) throw new NotFoundException(`User #${id} not found`);
     return u;
   }
 
-  async updatePhone(userId: number, phoneNumber: string): Promise<User> {
+  async updatePhone(userId: string, phoneNumber: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -112,21 +141,21 @@ export class UsersService {
     });
   }
 
-  async updateStatus(userId: number, status: UserStatus): Promise<User> {
+  async updateStatus(userId: string, status: UserStatus): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { status },
     });
   }
 
-  async markPaymentStarted(userId: number): Promise<User> {
+  async markPaymentStarted(userId: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { paymentStartedAt: new Date() },
     });
   }
 
-  async markApproved(userId: number): Promise<User> {
+  async markApproved(userId: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -136,7 +165,7 @@ export class UsersService {
     });
   }
 
-  async markBlocked(userId: number): Promise<User> {
+  async markBlocked(userId: string): Promise<User> {
     return this.prisma.user.update({
       where: { id: userId },
       data: { status: UserStatus.BLOCKED },
@@ -166,11 +195,16 @@ export class UsersService {
         { phoneNumber: { contains: filter.search } },
       ];
     }
+    // UTM filter: null (direct) yoki specific source.
+    if (filter.utmSourceId !== undefined) {
+      where.utmSourceId = filter.utmSourceId;
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.user.findMany({
         where,
         orderBy: { createdAt: 'desc' },
+        include: { utmSource: { select: { id: true, code: true, name: true } } },
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -192,6 +226,7 @@ export class UsersService {
       this.prisma.user.count(),
       this.prisma.user.groupBy({
         by: ['status'],
+        orderBy: { status: 'asc' },
         _count: { _all: true },
       }),
       this.prisma.user.count({ where: { createdAt: { gte: startOfDay } } }),
@@ -201,7 +236,8 @@ export class UsersService {
       Object.values(UserStatus).map((s) => [s, 0]),
     ) as Record<UserStatus, number>;
     for (const g of grouped) {
-      byStatus[g.status] = g._count._all;
+      const count = (g._count as { _all?: number } | undefined)?._all ?? 0;
+      byStatus[g.status] = count;
     }
 
     return { total, byStatus, todayNew };
@@ -209,7 +245,7 @@ export class UsersService {
 
   // ──────────── BROADCAST FILTER ────────────
 
-  async findIdsByFilter(filter: 'ALL' | 'PAID' | 'UNPAID' | 'PENDING'): Promise<number[]> {
+  async findIdsByFilter(filter: 'ALL' | 'PAID' | 'UNPAID' | 'PENDING'): Promise<string[]> {
     let where: Prisma.UserWhereInput = {};
     switch (filter) {
       case 'ALL':

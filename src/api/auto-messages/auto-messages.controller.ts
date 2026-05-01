@@ -4,7 +4,6 @@ import {
   Delete,
   Get,
   Param,
-  ParseIntPipe,
   Post,
   Put,
   UseGuards,
@@ -33,14 +32,14 @@ export class AutoMessagesApiController {
 
   @Put(':id')
   async update(
-    @Param('id', ParseIntPipe) id: number,
+    @Param('id') id: string,
     @Body() dto: UpdateAutoMessageDto,
   ) {
     return this.service.update(id, dto);
   }
 
   @Delete(':id')
-  async remove(@Param('id', ParseIntPipe) id: number): Promise<{ ok: true }> {
+  async remove(@Param('id') id: string): Promise<{ ok: true }> {
     await this.service.remove(id);
     return { ok: true };
   }

@@ -39,13 +39,6 @@ export class PaymentHandler {
       return;
     }
 
-    if (!user.phoneNumber) {
-      await ctx.answerCallbackQuery({
-        text: 'Avval telefon raqamingizni yuboring.',
-      });
-      return;
-    }
-
     const [cardNumber, cardHolder, price] = await Promise.all([
       this.settings.get(SETTINGS_KEYS.CARD_NUMBER),
       this.settings.get(SETTINGS_KEYS.CARD_HOLDER),

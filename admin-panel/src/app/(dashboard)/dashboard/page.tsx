@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { UsersTrendChart } from '@/components/dashboard/users-trend-chart';
 import { PaymentsDistributionChart } from '@/components/dashboard/payments-distribution-chart';
+import { TopUtmSources } from '@/components/dashboard/top-utm-sources';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,6 +90,11 @@ export default function DashboardPage() {
           rejected={paymentsStats?.rejected ?? 0}
           loading={isLoading}
         />
+      </div>
+
+      {/* Top UTM sources */}
+      <div className="mt-6">
+        <TopUtmSources data={stats?.topUtmSources} loading={isLoading} />
       </div>
 
       {/* Recent payments */}

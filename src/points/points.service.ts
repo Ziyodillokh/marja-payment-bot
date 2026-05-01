@@ -11,7 +11,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AwardPointsInput } from './dto/award-points.dto';
 
 export interface PointsHistoryFilter {
-  userId?: number;
+  userId?: string;
   type?: PointsTransactionType;
   page?: number;
   limit?: number;
@@ -114,6 +114,7 @@ export class PointsService {
     const grouped = await this.prisma.pointsTransaction.groupBy({
       by: ['type'],
       where,
+      orderBy: { type: 'asc' },
       _sum: { amount: true },
       _count: { _all: true },
     });
@@ -130,8 +131,8 @@ export class PointsService {
     let totalDeducted = 0;
 
     for (const g of grouped) {
-      const sum = g._sum.amount ?? 0;
-      countByType[g.type] = g._count._all;
+      const sum = g._sum?.amount ?? 0;
+      countByType[g.type] = g._count?._all ?? 0;
       sumByType[g.type] = sum;
       if (sum > 0) totalAwarded += sum;
       else totalDeducted += sum;

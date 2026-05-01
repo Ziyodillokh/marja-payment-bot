@@ -72,9 +72,21 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit(): Promise<void> {
     // Handlerlar bot.update.ts orqali register qilinadi (BotUpdate provider).
-    // Lekin lifecycle order: BotUpdate constructor BotService dan oldin yoki keyin?
-    // Nest aniqlab chaqiradi — BotUpdate ham OnModuleInit, u handler'larni register qiladi,
-    // keyin bu yerda biz start qilamiz. start() async bo'lib turadi.
+    // BotUpdate ham OnModuleInit, u handler'larni register qiladi,
+    // keyin bu yerda biz start qilamiz.
+
+    // Telegram'dagi pastki menyu komandalari (/ tugmasi bosilganda chiqadi).
+    try {
+      await this.bot.api.setMyCommands([
+        { command: 'start', description: 'Botni boshlash / asosiy menyu' },
+        { command: 'balance', description: '💎 Mening balansim va reytingim' },
+        { command: 'top', description: '🏆 TOP-10 reyting' },
+        { command: 'referral', description: '🔗 Referral linkim' },
+      ]);
+      this.logger.log('Bot commands menu registered');
+    } catch (err) {
+      this.logger.warn(`setMyCommands failed: ${(err as Error).message}`);
+    }
 
     const mode = (this.config.get<string>('BOT_MODE') ?? 'polling').toLowerCase();
 
@@ -108,7 +120,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
     this.bot
       .start({
-        allowed_updates: ['message', 'callback_query'],
+        allowed_updates: ['message', 'callback_query', 'message_reaction'],
         onStart: (info) => {
           this.logger.log(`🤖 Bot @${info.username} started (long polling)`);
         },
@@ -140,8 +152,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
    * admin guruhdagi original chek caption'ini yangilash.
    */
   async approvePaymentFlow(
-    paymentId: number,
-    opts: { actorLabel: string; reviewedById?: number },
+    paymentId: string,
+    opts: { actorLabel: string; reviewedById?: string },
   ): Promise<ApproveFlowResult> {
     const before = await this.payments.findById(paymentId);
     if (!before) throw new Error(`Payment #${paymentId} not found`);
@@ -225,7 +237,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
    * Foydalanuvchining referreri bo'lsa, REFERRAL_PURCHASE bonusini beradi.
    * Idempotency: PointsTransaction da (userId, type, relatedUserId) unique constraint.
    */
-  private async awardReferralPurchaseBonus(buyerUserId: number): Promise<void> {
+  private async awardReferralPurchaseBonus(buyerUserId: string): Promise<void> {
     const buyer = await this.users.findById(buyerUserId);
     if (!buyer || !buyer.referredById) return;
 
@@ -276,8 +288,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
    * admin guruhdagi caption'ni yangilash.
    */
   async rejectPaymentFlow(
-    paymentId: number,
-    opts: { actorLabel: string; reviewedById?: number; reason?: string },
+    paymentId: string,
+    opts: { actorLabel: string; reviewedById?: string; reason?: string },
   ): Promise<Payment> {
     const before = await this.payments.findById(paymentId);
     if (!before) throw new Error(`Payment #${paymentId} not found`);
@@ -351,7 +363,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async handleSendError(userId: number, err: unknown): Promise<void> {
+  private async handleSendError(userId: string, err: unknown): Promise<void> {
     if (err instanceof GrammyError) {
       // 403 — user botni bloklagan
       if (err.error_code === 403) {

@@ -19,6 +19,7 @@ import { AutoMessagesModule } from './auto-messages/auto-messages.module';
 import { PointsModule } from './points/points.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { LeaderboardModule } from './leaderboard/leaderboard.module';
+import { UtmModule } from './utm/utm.module';
 import { ApiModule } from './api/api.module';
 
 @Module({
@@ -51,6 +52,7 @@ import { ApiModule } from './api/api.module';
     PointsModule,
     ReferralsModule,
     LeaderboardModule,
+    UtmModule,
     BroadcastModule,
     AutoMessagesModule,
     BotModule,

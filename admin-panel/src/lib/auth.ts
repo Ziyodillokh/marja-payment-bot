@@ -24,17 +24,17 @@ export const authStorage = {
     document.cookie = `${TOKEN_KEY}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   },
 
-  setAdmin(admin: { id: number; username: string }): void {
+  setAdmin(admin: { id: string; username: string }): void {
     if (typeof window === 'undefined') return;
     localStorage.setItem(ADMIN_KEY, JSON.stringify(admin));
   },
 
-  getAdmin(): { id: number; username: string } | null {
+  getAdmin(): { id: string; username: string } | null {
     if (typeof window === 'undefined') return null;
     const raw = localStorage.getItem(ADMIN_KEY);
     if (!raw) return null;
     try {
-      return JSON.parse(raw) as { id: number; username: string };
+      return JSON.parse(raw) as { id: string; username: string };
     } catch {
       return null;
     }

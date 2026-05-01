@@ -33,7 +33,7 @@ export function useCreateAutoMessage() {
 export function useUpdateAutoMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: Partial<AutoMessage> }) =>
+    mutationFn: ({ id, input }: { id: string; input: Partial<AutoMessage> }) =>
       api.autoMessages.update(id, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['auto-messages'] });
@@ -46,7 +46,7 @@ export function useUpdateAutoMessage() {
 export function useDeleteAutoMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => api.autoMessages.remove(id),
+    mutationFn: (id: string) => api.autoMessages.remove(id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['auto-messages'] });
       toast.success("O'chirildi");

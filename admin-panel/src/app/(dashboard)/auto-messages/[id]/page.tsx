@@ -1,29 +1,44 @@
 'use client';
 
+import { useParams } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import { PageHeader } from '@/components/shared/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/shared/empty-state';
-import { Wrench } from 'lucide-react';
+import { AutoMessageForm } from '@/components/auto-messages/auto-message-form';
+import { Skeleton } from '@/components/ui/skeleton';
+import { api } from '@/lib/api';
 
 export default function AutoMessageEditPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+
+  // Hozircha alohida getById yo'q — list'dan topib olamiz.
+  const { data, isLoading } = useQuery({
+    queryKey: ['auto-messages'],
+    queryFn: () => api.autoMessages.list(),
+  });
+  const message = data?.find((m) => m.id === id);
+
   return (
     <>
       <PageHeader
-        title="Tahrirlash"
+        title={message?.name ?? 'Tahrirlash'}
         breadcrumbs={[
           { label: 'Avto xabarlar', href: '/auto-messages' },
-          { label: 'Tahrirlash' },
+          { label: message?.name ?? `#${id}` },
         ]}
       />
-      <Card>
-        <CardContent className="p-0">
-          <EmptyState
-            icon={Wrench}
-            title="Forma tez orada"
-            description="Bu sahifa keyingi versiyada to'liq ishga tushiriladi. Hozircha avto xabarlarni asosiy ro'yxatdan toggle/delete qilish mumkin."
-          />
-        </CardContent>
-      </Card>
+      {isLoading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-32 w-full" />
+          <Skeleton className="h-48 w-full" />
+        </div>
+      ) : message ? (
+        <AutoMessageForm initial={message} />
+      ) : (
+        <div className="text-center text-sm text-muted-foreground">
+          Topilmadi
+        </div>
+      )}
     </>
   );
 }

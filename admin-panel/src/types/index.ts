@@ -1,4 +1,5 @@
 // Backend Prisma modellariga mos keluvchi frontend typelar.
+// IDlar — CUID (string).
 
 export type UserStatus =
   | 'NEW'
@@ -24,7 +25,7 @@ export type TriggerType =
   | 'AFTER_PAYMENT_NO_APPROVAL';
 
 export interface User {
-  id: number;
+  id: string;
   telegramId: string; // bigint serialized
   username: string | null;
   firstName: string | null;
@@ -35,18 +36,23 @@ export interface User {
   startedAt: string;
   paymentStartedAt: string | null;
   approvedAt: string | null;
+  points: number;
+  referredById: string | null;
+  utmSourceId: string | null;
+  utmRawParam: string | null;
+  utmSource?: { id: string; code: string; name: string } | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Payment {
-  id: number;
-  userId: number;
+  id: string;
+  userId: string;
   user?: User;
-  amount: string; // Decimal serialized
+  amount: string;
   photoFileId: string;
   status: PaymentStatus;
-  reviewedById: number | null;
+  reviewedById: string | null;
   reviewedAt: string | null;
   rejectionReason: string | null;
   groupChatId: string | null;
@@ -62,13 +68,13 @@ export interface Setting {
 }
 
 export interface Broadcast {
-  id: number;
+  id: string;
   text: string;
   mediaFileId: string | null;
   mediaType: string | null;
   parseMode: string | null;
   filterType: BroadcastFilter;
-  userIds: number[];
+  userIds: string[];
   status: BroadcastStatus;
   totalCount: number;
   sentCount: number;
@@ -76,12 +82,12 @@ export interface Broadcast {
   scheduledAt: string | null;
   startedAt: string | null;
   completedAt: string | null;
-  createdById: number | null;
+  createdById: string | null;
   createdAt: string;
 }
 
 export interface AutoMessage {
-  id: number;
+  id: string;
   name: string;
   triggerType: TriggerType;
   triggerAfter: number;
@@ -94,7 +100,7 @@ export interface AutoMessage {
 }
 
 export interface Admin {
-  id: number;
+  id: string;
   username: string;
 }
 
@@ -128,4 +134,99 @@ export interface PaymentsStats {
 export interface DashboardStats {
   users: UsersStats;
   payments: PaymentsStats;
+  topUtmSources?: TopUtmSource[];
+}
+
+// ──────────── GAMIFIKATSIYA ────────────
+
+export type PointsTransactionType =
+  | 'REFERRAL_START'
+  | 'REFERRAL_PURCHASE'
+  | 'COMMENT'
+  | 'REACTION'
+  | 'REACTION_REMOVED'
+  | 'ADMIN_ADJUSTMENT';
+
+export interface PointsTransaction {
+  id: string;
+  userId: string;
+  amount: number;
+  type: PointsTransactionType;
+  description: string | null;
+  relatedUserId: string | null;
+  relatedMessageId: string | null;
+  createdAt: string;
+}
+
+export interface ReferralStats {
+  totalReferrals: number;
+  purchasedReferrals: number;
+  totalEarnedPoints: number;
+}
+
+export interface UserOverview {
+  user: User & { rank: number };
+  referralStats: ReferralStats;
+  pointsHistory: Paginated<PointsTransaction>;
+  payments: Payment[];
+}
+
+// ──────────── UTM TRACKING ────────────
+
+export interface UtmSource {
+  id: string;
+  code: string;
+  name: string;
+  description: string | null;
+  isActive: boolean;
+  createdById: string | null;
+  createdAt: string;
+  updatedAt: string;
+  // Faqat list response'ida (backend qo'shadi):
+  link?: string;
+}
+
+export interface UtmFunnelMetrics {
+  utmSourceId: string | null;
+  code: string;
+  name: string;
+  totalUsers: number;
+  phoneProvided: number;
+  paymentInitiated: number;
+  paymentSubmitted: number;
+  paymentApproved: number;
+  paymentRejected: number;
+  phoneRate: number;
+  paymentInitRate: number;
+  paymentSubmitRate: number;
+  approvalRate: number;
+  revenue: string;
+  avgRevenuePerUser: string;
+}
+
+export interface UtmDailyMetric {
+  day: string;
+  users: number;
+  approved: number;
+  phone_provided?: number;
+  source_code?: string;
+}
+
+export interface TopUtmSource {
+  utmSourceId: string | null;
+  code: string;
+  name: string;
+  totalUsers: number;
+  approved: number;
+}
+
+// ──────────── LEADERBOARD ────────────
+
+export interface LeaderboardEntry {
+  id: string;
+  telegramId: string;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  points: number;
 }

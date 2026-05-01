@@ -189,6 +189,64 @@ npm run prisma:migrate -- --name add_gamification
 npm run prisma:seed   # yangi default settings
 ```
 
+## UTM tracking
+
+Admin har qaysi reklama saytida botni reklamalashi mumkin. Har source uchun
+unique link beriladi va bot foydalanuvchi qaysi saytdan kelganini bilib oladi.
+
+### Link formati
+
+```
+https://t.me/<BOT>?start=src_<code>            — faqat UTM
+https://t.me/<BOT>?start=ref_<cuid>            — faqat referral
+https://t.me/<BOT>?start=src_<code>_ref_<cuid> — ikkalasi
+```
+
+`code` — qisqa kalit (lowercase + raqam + hyphen, masalan: `fb`, `site1`,
+`google-ads-jan`). `_` ishlatilmaydi (separator). `src` va `ref` reserved.
+
+### First-touch attribution
+
+Foydalanuvchining `utmSourceId` faqat **birinchi** `/start` paytida o'rnatiladi.
+Keyingi qayta `/start`'lar (boshqa link orqali ham) attribution'ni o'zgartirmaydi.
+
+### Funnel statistikasi
+
+Har source uchun: /start bosgan → telefon bergan → to'lov boshlagan → chek
+yuborgan → tasdiqlangan/rad etilgan + konversiya foizi + daromad.
+
+### REST API endpointlar
+
+| Method | Path | Tavsifi |
+|---|---|---|
+| GET | `/api/utm-sources?isActive=true` | Source'lar ro'yxati + tayyor link |
+| GET | `/api/utm-sources/:id` | Bitta source |
+| POST | `/api/utm-sources` | Yaratish: `{ code, name, description? }` |
+| PUT | `/api/utm-sources/:id` | Yangilash |
+| DELETE | `/api/utm-sources/:id` | **Faqat deactivate** (data integrity) |
+| GET | `/api/utm-sources/:id/link?refUserId=<cuid>` | Tayyor link |
+| GET | `/api/utm-analytics/funnel?from&to&utmSourceId` | Har source funnel |
+| GET | `/api/utm-analytics/daily?from&to&utmSourceId` | Kunma-kun chart |
+| GET | `/api/utm-analytics/comparison?from&to` | Barcha source'lar comparison |
+
+`utmSourceId` parametri:
+- yo'q → barcha source'lar (jumladan `direct`)
+- `null` yoki `direct` → faqat manbasiz user'lar
+- `<cuid>` → bitta source
+
+### Mavjud endpointlarga qo'shimcha
+
+- **GET `/api/users?utmSourceId=...`** — UTM bo'yicha filter
+- Har user response'da `utmSource: { id, code, name }` qaytadi
+- **GET `/api/dashboard/stats`** — `topUtmSources` (top 5)
+
+### Sinash
+
+```bash
+npx jest src/bot/utils/start-param.parser.spec.ts
+# https://t.me/marja_sessiyabot?start=src_fb
+```
+
 ## Webhook rejimi
 
 Productionda webhook ishlatish uchun `.env`:
