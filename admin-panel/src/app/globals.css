@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ────────────────────────────────────────────────────────────
+   COLOR TOKENS — elegant minimal palette
+   Inspired by Linear / Vercel / Notion / Stripe
+   ────────────────────────────────────────────────────────────*/
+
+@layer base {
+  :root {
+    /* Surfaces */
+    --background: 0 0% 98%;          /* #FAFAFA */
+    --foreground: 222 47% 8%;        /* #111827 */
+    --card: 0 0% 100%;               /* #FFFFFF */
+    --card-foreground: 222 47% 8%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 8%;
+
+    /* Borders & inputs */
+    --border: 220 13% 91%;           /* #E5E7EB */
+    --input: 220 13% 91%;
+    --ring: 222 47% 11%;
+    --subtle: 0 0% 96%;              /* hover bg */
+
+    /* Brand: near-black accent (Linear/Vercel style) */
+    --primary: 222 47% 8%;           /* #111827 */
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 96%;        /* #F3F4F6 */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;  /* #6B7280 */
+
+    --accent: 220 14% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 51%;        /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 160 84% 39%;          /* #10B981 */
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;           /* #F59E0B */
+    --warning-foreground: 0 0% 100%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222 47% 6%;
+    --foreground: 0 0% 98%;
+    --card: 222 47% 8%;
+    --card-foreground: 0 0% 98%;
+    --popover: 222 47% 8%;
+    --popover-foreground: 0 0% 98%;
+    --border: 217 19% 18%;
+    --input: 217 19% 18%;
+    --ring: 0 0% 95%;
+    --subtle: 222 47% 10%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 222 47% 8%;
+    --secondary: 217 19% 14%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 217 19% 14%;
+    --muted-foreground: 220 9% 65%;
+    --accent: 217 19% 14%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+  h1, h2, h3, h4 {
+    @apply tracking-tighter;
+  }
+}
+
+/* Skeleton shimmer */
+@layer utilities {
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(var(--subtle)) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 1000px 100%;
+    @apply animate-shimmer;
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

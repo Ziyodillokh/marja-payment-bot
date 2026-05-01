@@ -1,0 +1,104 @@
+# CI/CD pipeline:
+# 1. main branch'ga har push da TypeScript build qilinadi (verifikatsiya).
+# 2. Build muvaffaqiyatli bo'lsa, server'ga SSH orqali deploy:
+#    git pull → npm ci → prisma migrate deploy → build → pm2 restart.
+#
+# Talab qilinadigan GitHub repo SECRETS (Settings → Secrets → Actions):
+#   HOST       — server IP yoki domain (masalan: 1.2.3.4 yoki bot.example.com)
+#   USERNAME   — SSH foydalanuvchi (masalan: root, ubuntu)
+#   PASSWORD   — SSH paroli (yoki SSH key ishlatish tavsiya etiladi)
+#
+# Ixtiyoriy:
+#   PORT       — SSH port (default: 22)
+#   APP_PATH   — server'dagi loyiha papkasi (default: /var/www/marja-payment-bot)
+
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # qo'lda ishga tushirish uchun
+
+jobs:
+  # ─────────── 1) BUILD & VERIFY ───────────
+  build:
+    name: Build & verify
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate
+
+      - name: TypeScript build
+        run: npm run build
+
+  # ─────────── 2) DEPLOY (faqat build PASS bo'lsa) ───────────
+  deploy:
+    name: Deploy to server
+    needs: build
+    runs-on: ubuntu-latest
+    # Faqat asosiy branchga push qilinganda yoki qo'lda ishga tushirilganda.
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          password: ${{ secrets.PASSWORD }}
+          port: ${{ secrets.PORT || 22 }}
+          script_stop: true # bironta komanda fail bo'lsa, butun script to'xtaydi
+          script: |
+            set -e
+
+            APP_PATH="${{ secrets.APP_PATH || '/var/www/marja-payment-bot' }}"
+
+            echo "📂 Loyiha papkasi: $APP_PATH"
+
+            # Birinchi deploy bo'lsa, klon qilamiz.
+            if [ ! -d "$APP_PATH/.git" ]; then
+              echo "🆕 Birinchi deploy — repo klon qilinmoqda…"
+              mkdir -p "$APP_PATH"
+              git clone https://github.com/${{ github.repository }}.git "$APP_PATH"
+            fi
+
+            cd "$APP_PATH"
+
+            echo "🔄 git pull"
+            git fetch --all
+            git reset --hard origin/main
+
+            echo "📦 npm ci"
+            npm ci --omit=dev=false
+
+            echo "🧬 prisma generate"
+            npm run prisma:generate
+
+            echo "🚚 prisma migrate deploy"
+            npm run prisma:migrate:deploy
+
+            echo "🏗  build"
+            npm run build
+
+            echo "♻️  pm2 restart"
+            if pm2 describe coursebot > /dev/null 2>&1; then
+              pm2 restart coursebot --update-env
+            else
+              pm2 start dist/main.js --name coursebot
+              pm2 save
+            fi
+
+            echo "✅ Deploy yakunlandi"

@@ -1,0 +1,233 @@
+// CourseBot Prisma schema
+// Bot va admin panel ikkalasi ham shu DB'dan foydalanadi.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────── ENUMS ────────────────
+
+enum UserStatus {
+  NEW
+  PHONE_PROVIDED
+  PAYMENT_PENDING
+  APPROVED
+  REJECTED
+  BLOCKED
+}
+
+enum PaymentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum BroadcastFilter {
+  ALL
+  PAID
+  UNPAID
+  PENDING
+  SPECIFIC
+}
+
+enum BroadcastStatus {
+  PENDING
+  SENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TriggerType {
+  AFTER_START_NO_PAYMENT
+  AFTER_PHONE_NO_PAYMENT
+  AFTER_PAYMENT_NO_APPROVAL
+}
+
+enum PointsTransactionType {
+  REFERRAL_START      // referral start bosgani uchun
+  REFERRAL_PURCHASE   // referral kurs sotib olgani uchun
+  COMMENT             // izoh yozgani uchun
+  REACTION            // reaksiya bosgani uchun
+  REACTION_REMOVED    // reaksiya olib tashlangani uchun
+  ADMIN_ADJUSTMENT    // admin qo'lda qo'shgan/olgan
+}
+
+// ──────────────── MODELS ────────────────
+
+model User {
+  id               Int        @id @default(autoincrement())
+  telegramId       BigInt     @unique
+  username         String?
+  firstName        String?
+  lastName         String?
+  phoneNumber      String?
+  languageCode     String?
+  status           UserStatus @default(NEW)
+  startedAt        DateTime   @default(now())
+  paymentStartedAt DateTime?
+  approvedAt       DateTime?
+
+  // ───── Gamifikatsiya ─────
+  points           Int        @default(0)
+  referredById     Int?
+  referredBy       User?      @relation("UserReferrals", fields: [referredById], references: [id])
+  referrals        User[]     @relation("UserReferrals")
+
+  pointsTransactions PointsTransaction[]
+  reactionLogs       ReactionLog[]
+  commentLogs        CommentLog[]
+
+  payments         Payment[]
+  autoMessageLogs  AutoMessageLog[]
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([points])
+  @@index([referredById])
+}
+
+model Payment {
+  id              Int           @id @default(autoincrement())
+  userId          Int
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount          Decimal       @db.Decimal(12, 2)
+  photoFileId     String
+  status          PaymentStatus @default(PENDING)
+  reviewedById    Int?
+  reviewedAt      DateTime?
+  rejectionReason String?
+  groupChatId     BigInt?
+  groupMessageId  Int?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Broadcast {
+  id          Int             @id @default(autoincrement())
+  text        String          @db.Text
+  mediaFileId String?
+  mediaType   String?
+  parseMode   String?         @default("HTML")
+  filterType  BroadcastFilter
+  userIds     Int[]           @default([])
+  status      BroadcastStatus @default(PENDING)
+  totalCount  Int             @default(0)
+  sentCount   Int             @default(0)
+  failedCount Int             @default(0)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdById Int?
+  createdAt   DateTime        @default(now())
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AutoMessage {
+  id           Int         @id @default(autoincrement())
+  name         String
+  triggerType  TriggerType
+  triggerAfter Int
+  text         String      @db.Text
+  mediaFileId  String?
+  mediaType    String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  sentLogs     AutoMessageLog[]
+
+  @@index([triggerType, isActive])
+}
+
+model AutoMessageLog {
+  id            Int         @id @default(autoincrement())
+  autoMessageId Int
+  autoMessage   AutoMessage @relation(fields: [autoMessageId], references: [id], onDelete: Cascade)
+  userId        Int
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sentAt        DateTime    @default(now())
+
+  @@unique([autoMessageId, userId])
+  @@index([userId])
+}
+
+// ──────────────── GAMIFIKATSIYA ────────────────
+
+model PointsTransaction {
+  id               Int                   @id @default(autoincrement())
+  userId           Int
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount           Int                   // musbat (qo'shildi) yoki manfiy (olindi)
+  type             PointsTransactionType
+  description      String?
+  relatedUserId    Int?                  // referral bo'lsa, qaysi user
+  relatedMessageId BigInt?               // izoh/reaksiya bo'lsa
+  createdAt        DateTime              @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([type])
+  // Idempotency uchun: bitta referee uchun bitta REFERRAL_PURCHASE
+  @@unique([userId, type, relatedUserId], name: "uniq_referral_purchase")
+}
+
+model ReactionLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId        BigInt
+  messageId     BigInt
+  emoji         String
+  isActive      Boolean  @default(true)
+  pointsAwarded Int      @default(0)
+  firstSetAt    DateTime @default(now())
+  lastChangedAt DateTime @updatedAt
+
+  @@unique([userId, chatId, messageId])
+  @@index([chatId, messageId])
+}
+
+model CommentLog {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chatId        BigInt
+  messageId     BigInt
+  threadId      BigInt?
+  pointsAwarded Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@unique([chatId, messageId])
+  @@index([userId, createdAt])
+}
