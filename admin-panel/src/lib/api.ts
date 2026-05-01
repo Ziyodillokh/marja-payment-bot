@@ -221,7 +221,7 @@ export const api = {
       mediaType?: string;
       parseMode?: string;
       filterType: BroadcastFilter;
-      userIds?: number[];
+      userIds?: string[];
       scheduledAt?: string;
     }): Promise<Broadcast> => {
       const { data } = await http.post<Broadcast>('/broadcasts', input);

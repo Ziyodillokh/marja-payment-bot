@@ -26,7 +26,7 @@ export function useCreateBroadcast() {
       mediaFileId?: string;
       mediaType?: string;
       filterType: BroadcastFilter;
-      userIds?: number[];
+      userIds?: string[];
       scheduledAt?: string;
     }) => api.broadcasts.create(input),
     onSuccess: () => {

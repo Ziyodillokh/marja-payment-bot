@@ -20,7 +20,7 @@ import { useAdjustUserPoints } from '@/lib/queries/useUsers';
 import { cn } from '@/lib/utils';
 
 interface Props {
-  userId: number;
+  userId: string;
   userName: string;
   currentBalance: number;
   open: boolean;

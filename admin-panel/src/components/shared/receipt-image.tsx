@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 interface ReceiptImageProps {
-  paymentId: number;
+  paymentId: string;
   className?: string;
   thumbnail?: boolean; // table'larda kichik thumbnail uchun
 }
