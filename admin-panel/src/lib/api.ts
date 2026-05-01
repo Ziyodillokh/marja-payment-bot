@@ -80,10 +80,22 @@ export const api = {
     list: async (params: {
       status?: UserStatus;
       search?: string;
+      utmSourceId?: string | null;
       page?: number;
       limit?: number;
     }): Promise<Paginated<User>> => {
-      const { data } = await http.get<Paginated<User>>('/users', { params });
+      // utmSourceId === null → "null" string (backend "direct" filter)
+      const queryParams: Record<string, string | number | undefined> = {
+        status: params.status,
+        search: params.search,
+        page: params.page,
+        limit: params.limit,
+      };
+      if (params.utmSourceId === null) queryParams.utmSourceId = 'null';
+      else if (params.utmSourceId) queryParams.utmSourceId = params.utmSourceId;
+      const { data } = await http.get<Paginated<User>>('/users', {
+        params: queryParams,
+      });
       return data;
     },
     getById: async (id: string): Promise<User> => {

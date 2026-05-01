@@ -6,6 +6,7 @@ import type { UserStatus } from '@/types';
 export interface UsersFilter {
   status?: UserStatus;
   search?: string;
+  utmSourceId?: string | null;
   page?: number;
   limit?: number;
 }
