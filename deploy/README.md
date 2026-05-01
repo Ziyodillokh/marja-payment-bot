@@ -17,6 +17,39 @@ Hech qanday tizim servis o'zgartirilmaydi (nginx, postgres, vb).
 
 ---
 
+## 🌐 Domen + SSL ulash (deploy'dan keyin)
+
+`deploy-server.sh`'dan SO'NG, domen ulash uchun:
+
+### Variant A — PowerShell (bir komanda)
+
+```powershell
+cd C:\Users\user\Desktop\yangibot!\deploy
+.\setup-domain.ps1 -Domain "sessiya.marjagroup.uz" -Email "you@example.com"
+```
+
+### Variant B — Server ichida
+
+```bash
+ssh root@62.171.184.14
+git -C /opt/marja-bot pull   # eng so'nggi skriptlar uchun
+DOMAIN=sessiya.marjagroup.uz EMAIL=you@example.com \
+  bash /opt/marja-bot/deploy/setup-domain.sh
+```
+
+⚠️ **Avval DNS sozlang**: `sessiya.marjagroup.uz` → A record → `62.171.184.14`
+
+Skript:
+1. nginx + certbot o'rnatadi (yo'q bo'lsa)
+2. Faqat sizning domeniz uchun config (`/etc/nginx/sites-available/marja-admin`) — boshqa saytlarga teng emas
+3. Let's Encrypt SSL (`certbot --nginx`, avtomatik renewal)
+4. Admin panelni `NEXT_PUBLIC_API_URL=https://DOMAIN/api` bilan rebuild
+5. nginx reverse proxy: `/` → admin (3501), `/api/*` → bot (3500)
+
+Tugagach: **`https://sessiya.marjagroup.uz`** ochiladi.
+
+---
+
 ## Variant 1 — Bir komanda (eng oson) 🚀
 
 PowerShell'ni **Administrator** sifatida oching, loyiha papkasiga o'ting:
