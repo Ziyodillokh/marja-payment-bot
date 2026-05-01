@@ -1,0 +1,3 @@
+# Bash skriptlarda Linux'da ishlash uchun LF (CRLF buzadi).
+*.sh text eol=lf
+deploy/deploy-server.sh text eol=lf
