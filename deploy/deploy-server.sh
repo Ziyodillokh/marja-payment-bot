@@ -52,7 +52,9 @@ require_root() {
 }
 
 random_password() {
-  tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
+  # openssl rand — pipefail bilan xavfsiz (SIGPIPE muammosi yo'q).
+  # 16 byte → 32 hex char (kuchli random).
+  openssl rand -hex 16
 }
 
 check_port_free() {
