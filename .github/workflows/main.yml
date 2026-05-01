@@ -1,23 +1,22 @@
 # CI/CD pipeline:
 # 1. main branch'ga har push da TypeScript build qilinadi (verifikatsiya).
 # 2. Build muvaffaqiyatli bo'lsa, server'ga SSH orqali deploy:
-#    git pull → npm ci → prisma migrate deploy → build → pm2 restart.
+#    deploy/deploy-server.sh ishga tushadi (idempotent, mavjud .env ni saqlaydi)
 #
-# Talab qilinadigan GitHub repo SECRETS (Settings → Secrets → Actions):
-#   HOST       — server IP yoki domain (masalan: 1.2.3.4 yoki bot.example.com)
-#   USERNAME   — SSH foydalanuvchi (masalan: root, ubuntu)
-#   PASSWORD   — SSH paroli (yoki SSH key ishlatish tavsiya etiladi)
+# Talab qilinadigan GitHub repo SECRETS (Settings → Secrets and variables → Actions):
+#   SSH_HOST       — server IP (62.171.184.14)
+#   SSH_USERNAME   — root
+#   SSH_PASSWORD   — server paroli
 #
 # Ixtiyoriy:
 #   PORT       — SSH port (default: 22)
-#   APP_PATH   — server'dagi loyiha papkasi (default: /var/www/marja-payment-bot)
 
 name: CI / Deploy
 
 on:
   push:
     branches: [main]
-  workflow_dispatch: # qo'lda ishga tushirish uchun
+  workflow_dispatch:
 
 jobs:
   # ─────────── 1) BUILD & VERIFY ───────────
@@ -49,29 +48,27 @@ jobs:
     name: Deploy to server
     needs: build
     runs-on: ubuntu-latest
-    # Faqat asosiy branchga push qilinganda yoki qo'lda ishga tushirilganda.
     if: github.ref == 'refs/heads/main'
 
     steps:
-      - name: SSH deploy
+      - name: SSH deploy via deploy-server.sh
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.PORT || 22 }}
-          script_stop: true # bironta komanda fail bo'lsa, butun script to'xtaydi
+          script_stop: true
+          command_timeout: 20m
           script: |
             set -e
 
-            APP_PATH="${{ secrets.APP_PATH || '/var/www/marja-payment-bot' }}"
+            APP_PATH="/opt/marja-bot"
 
-            echo "📂 Loyiha papkasi: $APP_PATH"
-
-            # Birinchi deploy bo'lsa, klon qilamiz.
+            # Birinchi deploy bo'lsa, shu yerga klon qilamiz.
             if [ ! -d "$APP_PATH/.git" ]; then
-              echo "🆕 Birinchi deploy — repo klon qilinmoqda…"
-              mkdir -p "$APP_PATH"
+              echo "🆕 Birinchi deploy — repo klon qilinmoqda..."
+              mkdir -p "$(dirname "$APP_PATH")"
               git clone https://github.com/${{ github.repository }}.git "$APP_PATH"
             fi
 
@@ -81,24 +78,14 @@ jobs:
             git fetch --all
             git reset --hard origin/main
 
-            echo "📦 npm ci"
-            npm ci --omit=dev=false
-
-            echo "🧬 prisma generate"
-            npm run prisma:generate
-
-            echo "🚚 prisma migrate deploy"
-            npm run prisma:migrate:deploy
-
-            echo "🏗  build"
-            npm run build
-
-            echo "♻️  pm2 restart"
-            if pm2 describe coursebot > /dev/null 2>&1; then
-              pm2 restart coursebot --update-env
-            else
-              pm2 start dist/main.js --name coursebot
-              pm2 save
-            fi
-
-            echo "✅ Deploy yakunlandi"
+            # deploy-server.sh hammasini biladi:
+            # - npm ci (bot va admin panel)
+            # - prisma generate + db push + seed (idempotent)
+            # - admin panel build
+            # - PM2 restart (marja-bot, marja-admin)
+            #
+            # .env mavjud bo'lsa o'zgartirmaydi (passwords saqlanadi)
+            #
+            # Bot token va boshqa muhim qiymatlar — .env'da qo'lda kiritilgan
+            # (deploy paytida birinchi marta yozilgan, keyin saqlanadi)
+            bash deploy/deploy-server.sh
