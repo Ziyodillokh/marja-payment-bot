@@ -200,10 +200,14 @@ export const api = {
       const { data } = await http.put<{ ok: true }>(`/settings/${key}`, { value });
       return data;
     },
-    uploadVideo: async (file: File): Promise<{ fileId: string }> => {
+    uploadVideo: async (
+      file: File,
+      isNote = false,
+    ): Promise<{ fileId: string; isNote: boolean }> => {
       const fd = new FormData();
       fd.append('video', file);
-      const { data } = await http.post<{ fileId: string }>(
+      fd.append('isNote', isNote ? 'true' : 'false');
+      const { data } = await http.post<{ fileId: string; isNote: boolean }>(
         '/settings/upload-video',
         fd,
         { headers: { 'Content-Type': 'multipart/form-data' } },

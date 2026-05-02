@@ -2,6 +2,7 @@
 
 export const SETTINGS_KEYS = {
   WELCOME_VIDEO_FILE_ID: 'welcome_video_file_id',
+  WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note', // "true" → dumaloq (sendVideoNote)
   WELCOME_TEXT: 'welcome_text',
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',

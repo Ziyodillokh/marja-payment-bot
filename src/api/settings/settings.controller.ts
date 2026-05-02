@@ -51,29 +51,62 @@ export class SettingsApiController {
     return { ok: true };
   }
 
+  /**
+   * Welcome video upload.
+   *
+   * Form-data:
+   *   video      — fayl (binary)
+   *   isNote     — "true" bo'lsa videoNote (dumaloq) sifatida yuboriladi
+   *
+   * VideoNote uchun talablar (Telegram):
+   *   - square aspect ratio
+   *   - max 60 sekund
+   *   - h.264 codec
+   * Aks holda Telegram fail beradi.
+   */
   @Post('upload-video')
   @UseInterceptors(FileInterceptor('video'))
   async uploadVideo(
     @UploadedFile() file?: Express.Multer.File,
-  ): Promise<{ fileId: string }> {
+    @Body('isNote') isNote?: string,
+  ): Promise<{ fileId: string; isNote: boolean }> {
     if (!file) throw new BadRequestException('video file is required');
     const storageChatId = this.config.get<string>('STORAGE_CHAT_ID');
     if (!storageChatId) {
       throw new BadRequestException('STORAGE_CHAT_ID is not configured');
     }
 
-    const sent = await this.botService.bot.api.sendVideo(
-      storageChatId,
-      new InputFile(file.buffer, file.originalname),
-    );
+    const wantNote = isNote === 'true';
+    const inputFile = new InputFile(file.buffer, file.originalname);
+    const api = this.botService.bot.api;
 
-    const fileId = sent.video?.file_id;
+    let fileId: string | undefined;
+
+    if (wantNote) {
+      try {
+        const sent = await api.sendVideoNote(storageChatId, inputFile);
+        fileId = sent.video_note?.file_id;
+      } catch (err) {
+        throw new BadRequestException(
+          `VideoNote yuborib bo'lmadi (Telegram): ${(err as Error).message}. ` +
+            `Dumaloq video square (kvadrat) bo'lishi va 60 sekunddan kam bo'lishi kerak.`,
+        );
+      }
+    } else {
+      const sent = await api.sendVideo(storageChatId, inputFile);
+      fileId = sent.video?.file_id;
+    }
+
     if (!fileId) {
       throw new BadRequestException('Telegram did not return file_id');
     }
 
     await this.settings.set(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID, fileId);
-    return { fileId };
+    await this.settings.set(
+      SETTINGS_KEYS.WELCOME_VIDEO_IS_NOTE,
+      wantNote ? 'true' : 'false',
+    );
+    return { fileId, isNote: wantNote };
   }
 
   /**

@@ -25,7 +25,8 @@ export function useUpdateSetting() {
 export function useUploadVideo() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => api.settings.uploadVideo(file),
+    mutationFn: ({ file, isNote }: { file: File; isNote: boolean }) =>
+      api.settings.uploadVideo(file, isNote),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
       toast.success('Video yuklandi');

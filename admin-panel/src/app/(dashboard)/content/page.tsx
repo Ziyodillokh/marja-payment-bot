@@ -26,6 +26,7 @@ import { api } from '@/lib/api';
 
 const KEYS = {
   WELCOME_VIDEO_FILE_ID: 'welcome_video_file_id',
+  WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note',
   WELCOME_TEXT: 'welcome_text',
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',
@@ -56,7 +57,10 @@ export default function ContentPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <WelcomeVideoSection currentFileId={map[KEYS.WELCOME_VIDEO_FILE_ID]} />
+          <WelcomeVideoSection
+            currentFileId={map[KEYS.WELCOME_VIDEO_FILE_ID]}
+            currentIsNote={map[KEYS.WELCOME_VIDEO_IS_NOTE] === 'true'}
+          />
           <WelcomeTextSection initial={map[KEYS.WELCOME_TEXT] ?? ''} />
           <CardSection
             initialNumber={map[KEYS.CARD_NUMBER] ?? ''}
@@ -76,10 +80,19 @@ export default function ContentPage() {
 
 // ─────────── WELCOME VIDEO ───────────
 
-function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
+function WelcomeVideoSection({
+  currentFileId,
+  currentIsNote,
+}: {
+  currentFileId?: string;
+  currentIsNote: boolean;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   const upload = useUploadVideo();
   const [dragOver, setDragOver] = useState(false);
+  const [isNote, setIsNote] = useState(currentIsNote);
+
+  useEffect(() => setIsNote(currentIsNote), [currentIsNote]);
 
   const handleFile = (file?: File | null) => {
     if (!file) return;
@@ -87,7 +100,7 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
       alert('Fayl juda katta (max 50MB)');
       return;
     }
-    upload.mutate(file);
+    upload.mutate({ file, isNote });
   };
 
   return (
@@ -99,12 +112,22 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
       <div className="space-y-3">
         {currentFileId && (
           <div className="space-y-2">
-            <div className="overflow-hidden rounded-md border border-border bg-black">
+            <div
+              className={`overflow-hidden border border-border bg-black ${
+                currentIsNote
+                  ? 'mx-auto aspect-square w-64 rounded-full'
+                  : 'rounded-md'
+              }`}
+            >
               <video
                 key={currentFileId}
                 controls
                 preload="metadata"
-                className="w-full max-h-96"
+                className={
+                  currentIsNote
+                    ? 'h-full w-full object-cover'
+                    : 'w-full max-h-96'
+                }
                 src={api.settings.welcomeVideoUrl(currentFileId)}
               >
                 Sizning brauzeringiz video tegini qo&apos;llab-quvvatlamaydi.
@@ -113,7 +136,7 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
             <div className="flex items-center justify-between rounded-md border border-border bg-subtle/40 px-3 py-2">
               <div>
                 <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  file_id
+                  file_id {currentIsNote && '· dumaloq (video note)'}
                 </div>
                 <div className="mt-0.5 font-mono text-xs">
                   {currentFileId.slice(0, 32)}
@@ -124,6 +147,25 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
             </div>
           </div>
         )}
+
+        <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-subtle/40 px-3 py-2.5 transition-colors hover:bg-subtle">
+          <input
+            type="checkbox"
+            checked={isNote}
+            onChange={(e) => setIsNote(e.target.checked)}
+            className="mt-0.5 h-4 w-4 cursor-pointer accent-foreground"
+          />
+          <div className="space-y-0.5">
+            <div className="text-sm font-medium">
+              Dumaloq video (video note)
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Telegram&apos;da dumaloq videoxabar sifatida yuboriladi.
+              Talab: <strong>kvadrat</strong> aspect, max{' '}
+              <strong>60 sekund</strong>, h.264 codec.
+            </div>
+          </div>
+        </label>
 
         <label
           onDragOver={(e) => {
@@ -161,7 +203,9 @@ function WelcomeVideoSection({ currentFileId }: { currentFileId?: string }) {
                 Faylni shu yerga tashlang yoki bosing
               </div>
               <div className="text-xs text-muted-foreground">
-                MP4, MOV · max 50MB
+                {isNote
+                  ? 'Dumaloq video sifatida yuklanadi · max 50MB'
+                  : 'MP4, MOV · max 50MB'}
               </div>
             </>
           )}

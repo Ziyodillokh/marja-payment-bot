@@ -12,6 +12,10 @@ const DEFAULT_SETTINGS: Array<{ key: string; value: string }> = [
     value: '',
   },
   {
+    key: 'welcome_video_is_note',
+    value: 'false', // "true" → dumaloq video (sendVideoNote)
+  },
+  {
     key: 'welcome_text',
     value:
       '<b>🎓 Bizning kursimizga xush kelibsiz!</b>\n\n' +
