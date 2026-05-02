@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
 # ════════════════════════════════════════════════════════════════════
-#  SSL diagnostika + avtomatik fix
+#  SSL diagnostika + avtomatik fix v2
 # ════════════════════════════════════════════════════════════════════
 #
 #  ERR_CERT_COMMON_NAME_INVALID xatosini tuzatish.
-#
-#  Sabablar:
-#    1. Cloudflare proxy ON (orange cloud) — Cloudflare cert serve qilyapti
-#    2. nginx'da default server'da boshqa cert
-#    3. Bizning config'imiz xato
+#  Boshqa loyiha (marjagroup.uz) sessiya subdomeniga javob beryapti.
 #
 #  Foydalanish:
 #    DOMAIN=sessiya.marjagroup.uz bash deploy/diagnose-ssl.sh
 # ════════════════════════════════════════════════════════════════════
 
-set -euo pipefail
+# IMPORTANT: set -e YO'Q — diagnostika davomida grep bo'sh bo'lsa ham davom etsin
+set -uo pipefail
 
 DOMAIN="${DOMAIN:-sessiya.marjagroup.uz}"
 
@@ -27,132 +24,141 @@ step() { echo; cyan "━━━ $* ━━━"; }
 ok()   { green "  ✓ $*"; }
 warn() { yellow "  ⚠ $*"; }
 
-# ──────────── 1. SERVER'DAN TEKSHIRISH ────────────
+# ──────────── 1. CERT TEKSHIRISH ────────────
 
-step "1. Lokal nginx tekshiruvi"
-echo "  Bizning nginx haqiqatan to'g'ri sertifikatni serve qilyaptimi?"
-echo
+step "1. Sertifikat tekshiruvi"
+echo "  Server lokal nginx'idan:"
 
-LOCAL_CERT=$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null | openssl x509 -noout -subject -issuer 2>/dev/null || echo "FAIL")
+LOCAL_CERT=$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null \
+              | openssl x509 -noout -subject -issuer 2>/dev/null || echo "FAIL")
 
 if [ "$LOCAL_CERT" = "FAIL" ]; then
-  red "  ✗ Server lokalda HTTPS javob bermayapti"
+  red "  ✗ HTTPS javob bermayapti"
 else
-  echo "  Server'dan kelgan sertifikat:"
   echo "$LOCAL_CERT" | sed 's/^/    /'
-
   if echo "$LOCAL_CERT" | grep -q "$DOMAIN"; then
-    ok "Lokal nginx TO'G'RI sertifikatni serve qilyapti"
+    ok "TO'G'RI sertifikat"
+    NGINX_CORRECT=true
   else
-    red "  ✗ Lokal nginx NOTO'G'RI sertifikat bermoqda"
+    red "  ✗ NOTO'G'RI sertifikat — boshqa server block javob beryapti"
+    NGINX_CORRECT=false
   fi
 fi
 
-# ──────────── 2. TASHQI TEKSHIRUV ────────────
+# ──────────── 2. BARCHA SERVER BLOK'LAR ────────────
 
-step "2. Tashqaridan tekshiruv (DNS orqali)"
+step "2. Barcha nginx server bloklari (server_name + listen)"
 
-EXT_CERT=$(echo | openssl s_client -connect "$DOMAIN":443 -servername "$DOMAIN" 2>/dev/null | openssl x509 -noout -subject -issuer 2>/dev/null || echo "FAIL")
-
-if [ "$EXT_CERT" = "FAIL" ]; then
-  red "  ✗ $DOMAIN tashqaridan ulanmadi"
-else
-  echo "  Tashqaridan kelgan sertifikat:"
-  echo "$EXT_CERT" | sed 's/^/    /'
-
-  if echo "$EXT_CERT" | grep -qi "cloudflare"; then
-    warn "CLOUDFLARE PROXY ON — orange cloud yoqilgan!"
-    echo
-    echo "  Yechim:"
-    echo "  Variant A) Cloudflare dashboard → DNS → orange cloud → kulrang qiling (DNS only)"
-    echo "  Variant B) Cloudflare → SSL/TLS → Overview → 'Full' yoki 'Full (strict)' qiling"
-  elif echo "$EXT_CERT" | grep -q "$DOMAIN"; then
-    ok "Tashqaridan ham TO'G'RI sertifikat keladi"
-  else
-    red "  ✗ Tashqari boshqa cert beryapti — proxy/CDN bo'lishi mumkin"
-  fi
-fi
-
-# ──────────── 3. NGINX SERVER BLOCK'LAR ────────────
-
-step "3. nginx server bloklari"
-
-echo "  443 portda tinglovchi configlar:"
-grep -rl "listen.*443" /etc/nginx/sites-enabled/ 2>/dev/null | sed 's/^/    /'
-
+# nginx -T butun config'ni dumps qiladi (include'lar bilan)
 echo
-echo "  Bizning config (marja-admin):"
-if [ -f /etc/nginx/sites-enabled/marja-admin ]; then
-  grep -E "listen|server_name|ssl_certificate" /etc/nginx/sites-enabled/marja-admin | sed 's/^/    /'
+echo "  Quyidagi config fayllarda 'sessiya' yoki 'marjagroup' uchraydigan joylar:"
+nginx -T 2>/dev/null | awk '
+  /# configuration file/ { file=$NF; sub(/:$/,"",file) }
+  /server_name/ {
+    if (match($0, /server_name[[:space:]]+([^;]+);/, arr)) {
+      print "    [" file "]"
+      print "      server_name: " arr[1]
+    }
+  }
+  /listen/ {
+    if (match($0, /listen[[:space:]]+([^;]+);/, arr)) {
+      print "      listen: " arr[1]
+    }
+  }
+' | head -60
+
+# ──────────── 3. BIZNING CONFIG MAVJUDLIGI ────────────
+
+step "3. Bizning marja-admin config tekshiruvi"
+
+OUR_CONFIG="/etc/nginx/sites-enabled/marja-admin"
+
+if [ -f "$OUR_CONFIG" ]; then
+  ok "Mavjud: $OUR_CONFIG"
+  echo
+  echo "  Tarkibi (faqat muhim qatorlar):"
+  grep -E "^[[:space:]]*(listen|server_name|ssl_certificate)" "$OUR_CONFIG" | sed 's/^/    /'
 else
-  red "  ✗ Bizning config topilmadi!"
+  red "  ✗ $OUR_CONFIG topilmadi!"
+  red "  setup-domain.sh ni qaytadan ishga tushiring"
+  exit 1
 fi
 
-# ──────────── 4. DEFAULT SERVER MUAMMOSI ────────────
+# ──────────── 4. KONFLIKT TEKSHIRUVI ────────────
 
-step "4. default_server konflikti tekshiruvi"
+step "4. Konflikt qiladigan server bloklarni topish"
 
-DEFAULT_SSL=$(grep -rl "listen.*443.*default_server" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v marja-admin || echo "")
+echo "  marjagroup.uz uchun config'lar (boshqa loyihangiz):"
+CONFLICTING=$(nginx -T 2>/dev/null | grep -B5 "server_name.*marjagroup\.uz" \
+              | grep "configuration file" | awk '{print $NF}' | sed 's/:$//' \
+              | grep -v marja-admin | sort -u)
 
-if [ -n "$DEFAULT_SSL" ]; then
-  warn "Boshqa configda 'default_server' 443 portda:"
-  echo "$DEFAULT_SSL" | sed 's/^/    /'
+if [ -n "$CONFLICTING" ]; then
+  echo "$CONFLICTING" | sed 's/^/    /'
+
   echo
-  echo "  Bu config Server Name Indication (SNI) ishlamaganda javob beradi."
-  echo "  Yechim: bizning config'ga ham default_server qo'shish kerak."
+  echo "  default_server'lar:"
+  nginx -T 2>/dev/null | grep -B3 "listen.*default_server" \
+    | grep "configuration file" | awk '{print $NF}' | sed 's/:$//' \
+    | sort -u | sed 's/^/    /'
 else
-  ok "Boshqa default_server topilmadi"
+  yellow "  Konflikt config topilmadi (marjagroup.uz alohida joyda)"
 fi
 
 # ──────────── 5. AVTOMATIK FIX ────────────
 
-step "5. Avtomatik fix (agar lokal cert to'g'ri bo'lsa)"
+step "5. Avtomatik fix"
 
-if [ -f /etc/nginx/sites-enabled/marja-admin ] && \
-   echo "$LOCAL_CERT" | grep -q "$DOMAIN"; then
-  ok "Lokal cert to'g'ri — fix kerak emas (muammo CDN tarafda)"
-else
-  warn "Bizning config'ni majburlab default_server qilamiz..."
+# Yechim: bizning configga http2 + default_server qo'shamiz
+# Shunda IP-darajadagi default block o'rniga bizniki ishga tushadi.
 
-  CONFIG=/etc/nginx/sites-enabled/marja-admin
+cp "$OUR_CONFIG" "${OUR_CONFIG}.bak.$(date +%s)"
+yellow "  → Backup: ${OUR_CONFIG}.bak.*"
 
-  # Backup
-  cp "$CONFIG" "${CONFIG}.bak.$(date +%s)"
-
-  # 443 listen'ga default_server qo'shish (faqat birinchi marta)
-  if ! grep -q "listen.*443.*default_server" "$CONFIG"; then
-    sed -i 's|listen 443 ssl;|listen 443 ssl default_server;|' "$CONFIG"
-    sed -i 's|listen \[::\]:443 ssl ipv6only=on;|listen [::]:443 ssl default_server ipv6only=on;|' "$CONFIG"
-    ok "default_server qo'shildi"
-  fi
-
-  # Boshqa default_server'larni o'chiramiz (faqat 443'da)
-  for f in $(grep -rl "listen.*443.*default_server" /etc/nginx/sites-enabled/ 2>/dev/null | grep -v marja-admin); do
-    yellow "  → $f dan default_server olib tashlanmoqda"
-    sed -i 's|listen 443 ssl default_server|listen 443 ssl|g' "$f"
-    sed -i 's|listen \[::\]:443 ssl default_server|listen [::]:443 ssl|g' "$f"
-  done
-
-  # Sintaksis tekshirish
-  if nginx -t 2>&1 | tail -2; then
-    systemctl reload nginx
-    ok "nginx reload qilindi"
-  else
-    red "nginx config xato — backup'dan tiklang"
-  fi
+# `listen 443 ssl;` → `listen 443 ssl default_server;` (bitta marta)
+# Faqat hali default_server qo'shilmagan bo'lsa
+if ! grep -q "listen.*443.*default_server" "$OUR_CONFIG"; then
+  sed -i 's|^\([[:space:]]*\)listen 443 ssl;|\1listen 443 ssl default_server;|' "$OUR_CONFIG"
+  sed -i 's|^\([[:space:]]*\)listen \[::\]:443 ssl ipv6only=on;|\1listen [::]:443 ssl default_server ipv6only=on;|' "$OUR_CONFIG"
+  ok "default_server qo'shildi (443'da bizning config birinchi javob beradi)"
 fi
 
-# ──────────── 6. XULOSA ────────────
+# Boshqa configlardan default_server'ni olib tashlamaymiz — boshqa loyihaga halaqit beradi.
+# Faqat bizniki qo'shamiz. SNI orqali to'g'ri match bo'lsa ishlaydi.
 
-step "Xulosa"
+# Sintaksis tekshirish
+if nginx -t 2>&1 | grep -q "syntax is ok"; then
+  systemctl reload nginx
+  ok "nginx reload qilindi"
+else
+  red "  ✗ nginx config xato — backup'dan tiklang:"
+  red "      cp ${OUR_CONFIG}.bak.* $OUR_CONFIG"
+  nginx -t
+  exit 1
+fi
 
-echo "  Brauzer cache'sini tozalang yoki Incognito'da oching:"
-echo "    https://$DOMAIN"
+# ──────────── 6. QAYTA TEKSHIRUV ────────────
+
+step "6. Fix natijasi"
+
+NEW_CERT=$(echo | openssl s_client -connect 127.0.0.1:443 -servername "$DOMAIN" 2>/dev/null \
+            | openssl x509 -noout -subject 2>/dev/null || echo "FAIL")
+
+if echo "$NEW_CERT" | grep -q "$DOMAIN"; then
+  green "  ✓ Endi nginx TO'G'RI sertifikat beryapti!"
+  green "    $NEW_CERT"
+else
+  red "  ✗ Hali ham noto'g'ri:"
+  red "    $NEW_CERT"
+  echo
+  echo "  Qo'shimcha qadamlar:"
+  echo "  1. Brauzer cache tozalang yoki Incognito'da oching:"
+  echo "       https://$DOMAIN"
+  echo "  2. SNI ishlatmaydigan eski client (curl)'da tekshiring:"
+  echo "       curl -vI --resolve $DOMAIN:443:127.0.0.1 https://$DOMAIN"
+fi
+
 echo
-echo "  Agar xato davom etsa:"
-echo "    1. DNS'da Cloudflare proxy yoqilganligini tekshiring (orange → grey)"
-echo "    2. Yoki Cloudflare → SSL/TLS → 'Full (strict)'"
-echo "    3. Brauzer cache: Ctrl+Shift+Delete → SSL cache'ni tozalang"
-echo
-echo "  Test:"
-echo "    curl -vI https://$DOMAIN 2>&1 | grep -E 'subject|issuer'"
+yellow "🌐 Brauzer cache (CHROME):"
+echo "    chrome://net-internals/#sockets → Flush socket pools"
+echo "    yoki Ctrl+Shift+N (Incognito) — toza sessiya"
