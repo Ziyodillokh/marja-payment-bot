@@ -112,10 +112,10 @@ server {
 NGINXEOF
 ok "Config qayta yozildi"
 
-# Symlink
+# Symlink (force — mavjud bo'lsa qayta yaratadi)
 LINK="/etc/nginx/sites-enabled/${APP_NAME}-admin"
-[ -L "$LINK" ] || ln -s "$CONFIG" "$LINK"
-ok "sites-enabled mavjud"
+ln -sf "$CONFIG" "$LINK"
+ok "sites-enabled symlink"
 
 # Let's Encrypt qo'shimcha SSL fayllari (certbot tomonidan yaratilgan)
 if [ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]; then
