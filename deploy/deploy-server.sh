@@ -59,6 +59,11 @@ random_password() {
 
 check_port_free() {
   local port="$1"
+  # Bizning konteynerimiz allaqachon shu portni ishlatayotgan bo'lsa — OK (re-deploy)
+  if docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
+       | grep -E "^marja-.*:${port}->" >/dev/null; then
+    return 0
+  fi
   if ss -tlnp 2>/dev/null | grep -q ":${port}\b"; then
     return 1
   fi
