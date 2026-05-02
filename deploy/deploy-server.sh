@@ -64,7 +64,22 @@ check_port_free() {
        | grep -E "^marja-.*:${port}->" >/dev/null; then
     return 0
   fi
-  if ss -tlnp 2>/dev/null | grep -q ":${port}\b"; then
+  # Bizning PM2 jarayonimiz shu portni ishlatayotgan bo'lsa — OK (re-deploy).
+  # ss -tlnp natijasida users:(("node",pid=NNN,...)) ko'rinadi; PID orqali pm2 process'ni topamiz.
+  local listener_line
+  listener_line="$(ss -tlnp 2>/dev/null | grep ":${port}\b" || true)"
+  if [ -n "$listener_line" ]; then
+    local pid
+    pid="$(echo "$listener_line" | grep -oP 'pid=\K[0-9]+' | head -n1 || true)"
+    if [ -n "$pid" ]; then
+      # PM2 jlist'dan shu PID bizning marja-* app'imiznikimi tekshiramiz
+      if command -v pm2 >/dev/null 2>&1 \
+         && pm2 jlist 2>/dev/null \
+              | grep -oE "\"name\":\"marja-[^\"]+\"[^}]*\"pid\":${pid}\b" \
+              >/dev/null; then
+        return 0
+      fi
+    fi
     return 1
   fi
   return 0
