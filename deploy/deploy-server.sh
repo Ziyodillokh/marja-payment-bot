@@ -64,25 +64,23 @@ check_port_free() {
        | grep -E "^marja-.*:${port}->" >/dev/null; then
     return 0
   fi
-  # Bizning PM2 jarayonimiz shu portni ishlatayotgan bo'lsa — OK (re-deploy).
-  # ss -tlnp natijasida users:(("node",pid=NNN,...)) ko'rinadi; PID orqali pm2 process'ni topamiz.
-  local listener_line
-  listener_line="$(ss -tlnp 2>/dev/null | grep ":${port}\b" || true)"
-  if [ -n "$listener_line" ]; then
-    local pid
-    pid="$(echo "$listener_line" | grep -oP 'pid=\K[0-9]+' | head -n1 || true)"
-    if [ -n "$pid" ]; then
-      # PM2 jlist'dan shu PID bizning marja-* app'imiznikimi tekshiramiz
-      if command -v pm2 >/dev/null 2>&1 \
-         && pm2 jlist 2>/dev/null \
-              | grep -oE "\"name\":\"marja-[^\"]+\"[^}]*\"pid\":${pid}\b" \
-              >/dev/null; then
-        return 0
-      fi
-    fi
-    return 1
+  # Listener PID'ini ss orqali olamiz
+  local pid
+  pid="$(ss -tlnp 2>/dev/null \
+           | grep ":${port}\b" \
+           | grep -oP 'pid=\K[0-9]+' \
+           | head -n1 || true)"
+  if [ -z "$pid" ]; then
+    return 0  # hech kim listen qilmayapti
   fi
-  return 0
+  # Listener'ning ishchi katalogi bizning APP_DIR ichidami? Agar shunday bo'lsa,
+  # bu bizning PM2 jarayonimiz (marja-bot yoki marja-admin) — re-deploy uchun OK.
+  local cwd
+  cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+  case "$cwd" in
+    "$APP_DIR"|"$APP_DIR"/*) return 0 ;;
+  esac
+  return 1
 }
 
 # ──────────── 1. PREREQUISITES ────────────
