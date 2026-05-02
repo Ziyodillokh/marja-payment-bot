@@ -70,9 +70,9 @@ server {
 # bizning cert'imizni oladi. SNI bilan kelgan marjagroup.uz so'rovi
 # o'z config'iga ketadi (server_name match).
 server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
-    http2 on;
+    # http2 nginx 1.18 (Ubuntu 22.04) uchun listen ichida bo'ladi
+    listen 443 ssl http2 default_server;
+    listen [::]:443 ssl http2 default_server;
 
     server_name $DOMAIN;
 
