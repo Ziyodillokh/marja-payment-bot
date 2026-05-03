@@ -322,8 +322,12 @@ npm ci --silent 2>&1 | tail -3 || true
 ok "Admin panel bog'lamlari"
 
 # .env.local
+# Relative URL — brauzer admin panel ochilgan domen orqali API ga ulanadi
+# (nginx /api/* ni backend'ga proxy qiladi). localhost ishlatish noto'g'ri
+# edi: NEXT_PUBLIC_* JS bundle'iga build paytida qotadi va brauzerda
+# foydalanuvchining O'Z mashinasiga so'rov yuboradi → "Network Error".
 cat > .env.local <<EOF
-NEXT_PUBLIC_API_URL=http://localhost:$BOT_PORT/api
+NEXT_PUBLIC_API_URL=/api
 EOF
 
 # Build
