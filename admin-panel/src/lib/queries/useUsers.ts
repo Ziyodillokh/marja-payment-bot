@@ -7,6 +7,8 @@ export interface UsersFilter {
   status?: UserStatus;
   search?: string;
   utmSourceId?: string | null;
+  from?: string;
+  to?: string;
   page?: number;
   limit?: number;
 }

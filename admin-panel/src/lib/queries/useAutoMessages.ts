@@ -16,10 +16,10 @@ export interface AutoMessageInput {
   isActive?: boolean;
 }
 
-export function useAutoMessages() {
+export function useAutoMessages(params?: { from?: string; to?: string }) {
   return useQuery({
-    queryKey: ['auto-messages'],
-    queryFn: () => api.autoMessages.list(),
+    queryKey: ['auto-messages', params],
+    queryFn: () => api.autoMessages.list(params),
   });
 }
 

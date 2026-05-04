@@ -13,11 +13,14 @@ import { DataTable, type DataTableColumn } from '@/components/shared/data-table'
 import { PaymentStatusBadge } from '@/components/shared/status-badge';
 import { PaymentActionDialog } from '@/components/payments/payment-action-dialog';
 import { ReceiptImage } from '@/components/shared/receipt-image';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import {
   useApprovePayment,
   usePayments,
   useRejectPayment,
 } from '@/lib/queries/usePayments';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import { formatPrice, getFullName, getInitials } from '@/lib/utils';
 import type { Payment, PaymentStatus } from '@/types';
 
@@ -34,8 +37,13 @@ export default function PaymentsPage() {
   const [tab, setTab] = useState<TabKey>('PENDING');
   const [page, setPage] = useState(1);
 
+  const { range, setRange } = useDateRangeParams();
+  const dateParams = rangeToApiParams(range);
+
   const { data, isLoading } = usePayments({
     status: tab === 'ALL' ? undefined : tab,
+    from: dateParams.from,
+    to: dateParams.to,
     page,
     limit: 20,
   });
@@ -182,6 +190,15 @@ export default function PaymentsPage() {
       <PageHeader
         title="To'lovlar"
         subtitle="Foydalanuvchilarning to'lov cheklari"
+        actions={
+          <DateRangePicker
+            value={range}
+            onChange={(r) => {
+              setPage(1);
+              setRange(r);
+            }}
+          />
+        }
       />
 
       <Tabs

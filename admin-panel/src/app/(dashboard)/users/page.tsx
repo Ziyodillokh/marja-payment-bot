@@ -19,8 +19,11 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { UserStatusBadge } from '@/components/shared/status-badge';
 import { UtmBadge } from '@/components/shared/utm-badge';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import { useUsers } from '@/lib/queries/useUsers';
 import { useUtmSources } from '@/lib/queries/useUtm';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import { getFullName, getInitials } from '@/lib/utils';
 import type { User, UserStatus } from '@/types';
 
@@ -42,6 +45,9 @@ export default function UsersPage() {
   const [utmFilter, setUtmFilter] = useState<UtmFilter>('ALL');
   const [page, setPage] = useState(1);
 
+  const { range, setRange } = useDateRangeParams();
+  const dateParams = rangeToApiParams(range);
+
   const { data: utmSources } = useUtmSources();
 
   const { data, isLoading } = useUsers({
@@ -53,6 +59,8 @@ export default function UsersPage() {
         : utmFilter === 'DIRECT'
           ? null
           : utmFilter,
+    from: dateParams.from,
+    to: dateParams.to,
     page,
     limit: 20,
   });
@@ -135,6 +143,15 @@ export default function UsersPage() {
           data
             ? `Jami ${data.total} ta foydalanuvchi`
             : "Botning barcha foydalanuvchilari"
+        }
+        actions={
+          <DateRangePicker
+            value={range}
+            onChange={(r) => {
+              setPage(1);
+              setRange(r);
+            }}
+          />
         }
       />
 

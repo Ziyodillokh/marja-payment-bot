@@ -10,11 +10,14 @@ import { Switch } from '@/components/ui/switch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/empty-state';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import {
   useAutoMessages,
   useDeleteAutoMessage,
   useUpdateAutoMessage,
 } from '@/lib/queries/useAutoMessages';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import type { TriggerType } from '@/types';
 
 const TRIGGER_LABELS: Record<TriggerType, string> = {
@@ -31,7 +34,8 @@ function formatDuration(seconds: number): string {
 }
 
 export default function AutoMessagesPage() {
-  const { data, isLoading } = useAutoMessages();
+  const { range, setRange } = useDateRangeParams();
+  const { data, isLoading } = useAutoMessages(rangeToApiParams(range));
   const updateM = useUpdateAutoMessage();
   const deleteM = useDeleteAutoMessage();
 
@@ -41,12 +45,15 @@ export default function AutoMessagesPage() {
         title="Avtomatik xabarlar"
         subtitle="Foydalanuvchi belgilangan vaqt o'tib aksiya qilmasa yuboriladigan xabarlar"
         actions={
-          <Button asChild>
-            <Link href="/auto-messages/new">
-              <Plus className="h-4 w-4" />
-              Yangi
-            </Link>
-          </Button>
+          <>
+            <DateRangePicker value={range} onChange={setRange} />
+            <Button asChild>
+              <Link href="/auto-messages/new">
+                <Plus className="h-4 w-4" />
+                Yangi
+              </Link>
+            </Button>
+          </>
         }
       />
 

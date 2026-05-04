@@ -5,6 +5,8 @@ import type { PaymentStatus } from '@/types';
 
 export interface PaymentsFilter {
   status?: PaymentStatus;
+  from?: string;
+  to?: string;
   page?: number;
   limit?: number;
 }

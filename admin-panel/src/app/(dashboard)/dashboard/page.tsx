@@ -13,8 +13,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PaymentStatusBadge } from '@/components/shared/status-badge';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import { useDashboardStats } from '@/lib/queries/useDashboard';
 import { usePayments } from '@/lib/queries/usePayments';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import { formatPrice, getFullName } from '@/lib/utils';
 
 // Deterministik psevdo-random sparkline (SSR/client mismatch'dan saqlanadi).
@@ -25,8 +28,12 @@ function spark(seed: number): number[] {
 }
 
 export default function DashboardPage() {
-  const { data: stats, isLoading } = useDashboardStats();
+  const { range, setRange } = useDateRangeParams();
+  const apiParams = rangeToApiParams(range);
+
+  const { data: stats, isLoading } = useDashboardStats(apiParams);
   const { data: recentPayments, isLoading: paymentsLoading } = usePayments({
+    ...apiParams,
     page: 1,
     limit: 8,
   });
@@ -39,6 +46,7 @@ export default function DashboardPage() {
       <PageHeader
         title="Bosh sahifa"
         subtitle="Loyihaning umumiy holati va so'nggi aksiyalar"
+        actions={<DateRangePicker value={range} onChange={setRange} />}
       />
 
       {/* Stat cards */}

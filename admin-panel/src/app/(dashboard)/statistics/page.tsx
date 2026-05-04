@@ -5,7 +5,10 @@ import { PageHeader } from '@/components/shared/page-header';
 import { StatCard } from '@/components/dashboard/stat-card';
 import { UsersTrendChart } from '@/components/dashboard/users-trend-chart';
 import { PaymentsDistributionChart } from '@/components/dashboard/payments-distribution-chart';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import { useDashboardStats } from '@/lib/queries/useDashboard';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import { formatPrice } from '@/lib/utils';
 
 function spark(seed: number): number[] {
@@ -15,13 +18,15 @@ function spark(seed: number): number[] {
 }
 
 export default function StatisticsPage() {
-  const { data, isLoading } = useDashboardStats();
+  const { range, setRange } = useDateRangeParams();
+  const { data, isLoading } = useDashboardStats(rangeToApiParams(range));
 
   return (
     <>
       <PageHeader
         title="Statistika"
         subtitle="Loyiha bo'yicha batafsil ko'rsatkichlar"
+        actions={<DateRangePicker value={range} onChange={setRange} />}
       />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

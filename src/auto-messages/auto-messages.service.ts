@@ -35,8 +35,15 @@ export class AutoMessagesService {
 
   // ──────────── CRUD ────────────
 
-  async list(): Promise<AutoMessage[]> {
+  async list(filter?: { from?: Date; to?: Date }): Promise<AutoMessage[]> {
+    const where: { createdAt?: { gte?: Date; lte?: Date } } = {};
+    if (filter?.from || filter?.to) {
+      where.createdAt = {};
+      if (filter.from) where.createdAt.gte = filter.from;
+      if (filter.to) where.createdAt.lte = filter.to;
+    }
     return this.prisma.autoMessage.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
     });
   }

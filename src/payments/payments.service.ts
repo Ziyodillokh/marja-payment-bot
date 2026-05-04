@@ -19,6 +19,8 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 export interface PaymentListFilter {
   status?: PaymentStatus;
   userId?: string;
+  from?: Date;
+  to?: Date;
   page?: number;
   limit?: number;
 }
@@ -169,6 +171,11 @@ export class PaymentsService {
     const where: Prisma.PaymentWhereInput = {};
     if (filter.status) where.status = filter.status;
     if (filter.userId) where.userId = filter.userId;
+    if (filter.from || filter.to) {
+      where.createdAt = {};
+      if (filter.from) where.createdAt.gte = filter.from;
+      if (filter.to) where.createdAt.lte = filter.to;
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.payment.findMany({

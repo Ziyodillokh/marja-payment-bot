@@ -81,6 +81,8 @@ export const api = {
       status?: UserStatus;
       search?: string;
       utmSourceId?: string | null;
+      from?: string;
+      to?: string;
       page?: number;
       limit?: number;
     }): Promise<Paginated<User>> => {
@@ -88,6 +90,8 @@ export const api = {
       const queryParams: Record<string, string | number | undefined> = {
         status: params.status,
         search: params.search,
+        from: params.from,
+        to: params.to,
         page: params.page,
         limit: params.limit,
       };
@@ -149,6 +153,8 @@ export const api = {
   payments: {
     list: async (params: {
       status?: PaymentStatus;
+      from?: string;
+      to?: string;
       page?: number;
       limit?: number;
     }): Promise<Paginated<Payment>> => {
@@ -223,8 +229,11 @@ export const api = {
   },
 
   broadcasts: {
-    list: async (): Promise<Broadcast[]> => {
-      const { data } = await http.get<Broadcast[]>('/broadcasts');
+    list: async (params?: {
+      from?: string;
+      to?: string;
+    }): Promise<Broadcast[]> => {
+      const { data } = await http.get<Broadcast[]>('/broadcasts', { params });
       return data;
     },
     getById: async (id: string): Promise<Broadcast> => {
@@ -281,8 +290,11 @@ export const api = {
   },
 
   autoMessages: {
-    list: async (): Promise<AutoMessage[]> => {
-      const { data } = await http.get<AutoMessage[]>('/auto-messages');
+    list: async (params?: {
+      from?: string;
+      to?: string;
+    }): Promise<AutoMessage[]> => {
+      const { data } = await http.get<AutoMessage[]>('/auto-messages', { params });
       return data;
     },
     create: async (input: {

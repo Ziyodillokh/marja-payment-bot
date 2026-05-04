@@ -2,7 +2,6 @@
 
 import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { format, subDays } from 'date-fns';
 import { CheckCircle2, Link2, TrendingUp, Trophy, Users } from 'lucide-react';
 
 import { PageHeader } from '@/components/shared/page-header';
@@ -19,7 +18,14 @@ import { StatCard } from '@/components/dashboard/stat-card';
 import { FunnelComparisonTable } from '@/components/utm/funnel-comparison-table';
 import { FunnelBarChart } from '@/components/utm/funnel-bar-chart';
 import { DailyLineChart } from '@/components/utm/daily-line-chart';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import { useUtmDaily, useUtmFunnel, useUtmSources } from '@/lib/queries/useUtm';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import {
+  defaultDateRange,
+  hasDateRange,
+  rangeToApiParams,
+} from '@/lib/date-range';
 import { compactNumber } from '@/lib/utm-helpers';
 
 type SourceFilter = 'all' | 'direct' | string;
@@ -29,18 +35,11 @@ function UtmAnalyticsContent() {
   const initial = searchParams.get('source') ?? 'all';
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>(initial);
 
-  // Default sana oralig'i: oxirgi 30 kun
-  const [days] = useState(30);
-  const dateRange = useMemo(() => {
-    const to = new Date();
-    const from = subDays(to, days);
-    return {
-      from: from.toISOString(),
-      to: to.toISOString(),
-      fromShort: format(from, 'd MMM'),
-      toShort: format(to, 'd MMM yyyy'),
-    };
-  }, [days]);
+  const { range, setRange } = useDateRangeParams();
+  // Daily chart va funnel uchun aniq from/to kerak — agar foydalanuvchi
+  // hech narsa tanlamagan bo'lsa, default oxirgi 30 kun (URL'ga yozilmaydi).
+  const effectiveRange = hasDateRange(range) ? range : defaultDateRange();
+  const apiParams = rangeToApiParams(effectiveRange);
 
   const utmSourceIdParam =
     sourceFilter === 'all'
@@ -51,13 +50,13 @@ function UtmAnalyticsContent() {
 
   const { data: sources } = useUtmSources();
   const { data: funnel, isLoading: funnelLoading } = useUtmFunnel({
-    from: dateRange.from,
-    to: dateRange.to,
+    from: apiParams.from,
+    to: apiParams.to,
     utmSourceId: utmSourceIdParam,
   });
   const { data: daily, isLoading: dailyLoading } = useUtmDaily({
-    from: dateRange.from,
-    to: dateRange.to,
+    from: apiParams.from!,
+    to: apiParams.to!,
     utmSourceId: utmSourceIdParam,
   });
 
@@ -98,9 +97,14 @@ function UtmAnalyticsContent() {
     <>
       <PageHeader
         title="UTM statistika"
-        subtitle={`${dateRange.fromShort} — ${dateRange.toShort} (oxirgi ${days} kun)`}
+        subtitle="Manbalar bo'yicha funnel va vaqt dynamics'i"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker
+              value={range}
+              onChange={setRange}
+              allowAll={false}
+            />
             <Select
               value={sourceFilter}
               onValueChange={(v) => setSourceFilter(v as SourceFilter)}

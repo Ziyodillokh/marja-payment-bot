@@ -9,7 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { DataTable, type DataTableColumn } from '@/components/shared/data-table';
 import { BroadcastStatusBadge } from '@/components/shared/status-badge';
+import { DateRangePicker } from '@/components/shared/date-range-picker';
 import { useBroadcasts } from '@/lib/queries/useBroadcasts';
+import { useDateRangeParams } from '@/lib/queries/useDateRange';
+import { rangeToApiParams } from '@/lib/date-range';
 import type { Broadcast } from '@/types';
 
 const FILTER_LABELS: Record<string, string> = {
@@ -21,7 +24,8 @@ const FILTER_LABELS: Record<string, string> = {
 };
 
 export default function BroadcastsPage() {
-  const { data, isLoading } = useBroadcasts();
+  const { range, setRange } = useDateRangeParams();
+  const { data, isLoading } = useBroadcasts(rangeToApiParams(range));
 
   const columns: DataTableColumn<Broadcast>[] = [
     {
@@ -90,12 +94,15 @@ export default function BroadcastsPage() {
         title="Xabarlar"
         subtitle="Mass yuborishlar tarixi va monitoring"
         actions={
-          <Button asChild>
-            <Link href="/broadcasts/new">
-              <Plus className="h-4 w-4" />
-              Yangi broadcast
-            </Link>
-          </Button>
+          <>
+            <DateRangePicker value={range} onChange={setRange} />
+            <Button asChild>
+              <Link href="/broadcasts/new">
+                <Plus className="h-4 w-4" />
+                Yangi broadcast
+              </Link>
+            </Button>
+          </>
         }
       />
 

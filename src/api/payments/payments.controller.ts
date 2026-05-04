@@ -23,6 +23,7 @@ import { PaymentsService } from '../../payments/payments.service';
 import { BotService } from '../../bot/bot.service';
 import { RejectPaymentDto } from './dto/reject-payment.dto';
 import { bigintToJson } from '../../common/utils/bigint.util';
+import { parseDateQuery } from '../../common/utils/parse-date-query.util';
 import { ConfigService } from '@nestjs/config';
 
 @UseGuards(JwtOrQueryGuard)
@@ -40,19 +41,23 @@ export class PaymentsApiController {
     @Query('to') to?: string,
   ): Promise<unknown> {
     return this.payments.stats(
-      from ? new Date(from) : undefined,
-      to ? new Date(to) : undefined,
+      parseDateQuery(from, 'start'),
+      parseDateQuery(to, 'end'),
     );
   }
 
   @Get()
   async list(
     @Query('status') status?: PaymentStatus,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ): Promise<unknown> {
     const result = await this.payments.list({
       status,
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

@@ -11,6 +11,9 @@ export interface UserListFilter {
   search?: string; // username, ism, telefon bo'yicha
   // UTM filter: cuid string (bitta source) | null (direct, source'siz) | undefined (hammasi)
   utmSourceId?: string | null;
+  // createdAt sana diapazoni (ISO timestamp). Inclusive.
+  from?: Date;
+  to?: Date;
   page?: number;
   limit?: number;
 }
@@ -198,6 +201,12 @@ export class UsersService {
     // UTM filter: null (direct) yoki specific source.
     if (filter.utmSourceId !== undefined) {
       where.utmSourceId = filter.utmSourceId;
+    }
+    // Sana diapazoni — createdAt bo'yicha
+    if (filter.from || filter.to) {
+      where.createdAt = {};
+      if (filter.from) where.createdAt.gte = filter.from;
+      if (filter.to) where.createdAt.lte = filter.to;
     }
 
     const [items, total] = await this.prisma.$transaction([

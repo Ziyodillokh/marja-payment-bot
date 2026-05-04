@@ -41,8 +41,15 @@ export class BroadcastService {
     private readonly queue: Queue,
   ) {}
 
-  async list(): Promise<Broadcast[]> {
+  async list(filter?: { from?: Date; to?: Date }): Promise<Broadcast[]> {
+    const where: { createdAt?: { gte?: Date; lte?: Date } } = {};
+    if (filter?.from || filter?.to) {
+      where.createdAt = {};
+      if (filter.from) where.createdAt.gte = filter.from;
+      if (filter.to) where.createdAt.lte = filter.to;
+    }
     return this.prisma.broadcast.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });

@@ -7,6 +7,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -22,6 +23,7 @@ import { BotService } from '../../bot/bot.service';
 import { CreateBroadcastDto } from '../../broadcast/dto/broadcast.dto';
 import { EditBroadcastDto } from './dto/edit-broadcast.dto';
 import { bigintToJson } from '../../common/utils/bigint.util';
+import { parseDateQuery } from '../../common/utils/parse-date-query.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('broadcasts')
@@ -33,8 +35,14 @@ export class BroadcastsApiController {
   ) {}
 
   @Get()
-  async list() {
-    return this.broadcasts.list();
+  async list(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.broadcasts.list({
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
+    });
   }
 
   @Get(':id')

@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -14,6 +15,7 @@ import {
   CreateAutoMessageDto,
   UpdateAutoMessageDto,
 } from '../../auto-messages/dto/auto-message.dto';
+import { parseDateQuery } from '../../common/utils/parse-date-query.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('auto-messages')
@@ -21,8 +23,14 @@ export class AutoMessagesApiController {
   constructor(private readonly service: AutoMessagesService) {}
 
   @Get()
-  async list() {
-    return this.service.list();
+  async list(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.service.list({
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
+    });
   }
 
   @Post()

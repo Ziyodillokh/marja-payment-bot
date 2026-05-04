@@ -3,10 +3,10 @@ import { toast } from 'sonner';
 import { api, extractErrorMessage } from '@/lib/api';
 import type { BroadcastFilter, CustomButton } from '@/types';
 
-export function useBroadcasts() {
+export function useBroadcasts(params?: { from?: string; to?: string }) {
   return useQuery({
-    queryKey: ['broadcasts'],
-    queryFn: () => api.broadcasts.list(),
+    queryKey: ['broadcasts', params],
+    queryFn: () => api.broadcasts.list(params),
   });
 }
 

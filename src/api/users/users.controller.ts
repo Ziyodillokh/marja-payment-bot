@@ -17,6 +17,7 @@ import { ReferralsService } from '../../referrals/referrals.service';
 import { LeaderboardService } from '../../leaderboard/leaderboard.service';
 import { PaymentsService } from '../../payments/payments.service';
 import { bigintToJson } from '../../common/utils/bigint.util';
+import { parseDateQuery } from '../../common/utils/parse-date-query.util';
 import { AdjustPointsDto } from './dto/adjust-points.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -40,6 +41,8 @@ export class UsersApiController {
     @Query('status') status?: UserStatus,
     @Query('search') search?: string,
     @Query('utmSourceId') utmSourceId?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ): Promise<unknown> {
@@ -53,6 +56,8 @@ export class UsersApiController {
           : utmSourceId === 'null' || utmSourceId === 'direct'
             ? null
             : utmSourceId,
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
     });

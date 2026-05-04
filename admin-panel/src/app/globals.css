@@ -119,4 +119,30 @@
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+
+  /* react-day-picker — Marja palette */
+  .rdp-marja {
+    --rdp-cell-size: 34px;
+    --rdp-accent-color: hsl(var(--foreground));
+    --rdp-background-color: hsl(var(--subtle));
+    margin: 0;
+    font-size: 13px;
+  }
+  .rdp-marja .rdp-day_selected,
+  .rdp-marja .rdp-day_selected:focus-visible,
+  .rdp-marja .rdp-day_selected:hover {
+    background-color: hsl(var(--foreground));
+    color: hsl(var(--background));
+  }
+  .rdp-marja .rdp-day_range_middle {
+    background-color: hsl(var(--subtle));
+    color: hsl(var(--foreground));
+  }
+  .rdp-marja .rdp-day_today {
+    font-weight: 600;
+  }
+  .rdp-marja .rdp-button:focus-visible:not([disabled]) {
+    background-color: hsl(var(--subtle));
+    border: none;
+  }
 }
