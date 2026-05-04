@@ -107,10 +107,18 @@ done
 
 step "2/8 Asosiy paketlar"
 
-apt-get update -qq
+# apt-get update — faqat biror paket o'rnatish kerak bo'lsa chaqiramiz.
+APT_UPDATED=false
+apt_update_once() {
+  if [ "$APT_UPDATED" = "false" ]; then
+    apt-get update -qq
+    APT_UPDATED=true
+  fi
+}
 
 install_if_missing() {
   if ! command -v "$1" >/dev/null 2>&1; then
+    apt_update_once
     yellow "  → $2 o'rnatilmoqda..."
     apt-get install -y -qq "$2" >/dev/null
     ok "$2 o'rnatildi"
@@ -145,6 +153,7 @@ fi
 
 # Docker Compose plugin
 if ! docker compose version >/dev/null 2>&1; then
+  apt_update_once
   yellow "  → Docker Compose plugin o'rnatilmoqda..."
   apt-get install -y -qq docker-compose-plugin >/dev/null
   ok "Docker Compose plugin o'rnatildi"
@@ -176,6 +185,63 @@ else
   git clone --quiet "$REPO_URL" "$APP_DIR"
   cd "$APP_DIR"
   ok "Kod klon qilindi"
+fi
+
+# ──────────── 3b. CHANGE DETECTION (smart skip) ────────────
+# Avvalgi muvaffaqiyatli deploy SHA'sini cache'dan o'qiymiz va git diff bilan
+# nima o'zgarganini aniqlaymiz. O'zgarmagan qismlar uchun npm ci / build / prisma
+# qadamlari skip qilinadi.
+#
+# Majburiy to'liq deploy uchun: FORCE=true bash deploy/deploy-server.sh
+
+CACHE_DIR="$APP_DIR/.deploy-cache"
+mkdir -p "$CACHE_DIR"
+LAST_SHA_FILE="$CACHE_DIR/last-sha"
+LAST_SHA="$(cat "$LAST_SHA_FILE" 2>/dev/null || true)"
+CURRENT_SHA="$(git rev-parse HEAD)"
+
+NEED_BACKEND_DEPS=true
+NEED_BACKEND_BUILD=true
+NEED_PRISMA_GEN=true
+NEED_SCHEMA_PUSH=true
+NEED_ADMIN_DEPS=true
+NEED_ADMIN_BUILD=true
+
+if [ "${FORCE:-false}" = "true" ]; then
+  warn "FORCE rejimi — barcha qadamlar qayta bajariladi"
+elif [ -z "$LAST_SHA" ]; then
+  warn "Birinchi deploy — hammasi quriladi"
+elif [ ! -d node_modules ] || [ ! -d dist ] || [ ! -d admin-panel/node_modules ] \
+     || [ ! -d admin-panel/.next ]; then
+  warn "Mavjud build artifaktlari yetishmayapti — hammasi qayta quriladi"
+elif [ "$LAST_SHA" = "$CURRENT_SHA" ]; then
+  ok "Kod o'zgarmagan ($(echo "$CURRENT_SHA" | cut -c1-7)) — npm/build skip"
+  NEED_BACKEND_DEPS=false
+  NEED_BACKEND_BUILD=false
+  NEED_PRISMA_GEN=false
+  NEED_SCHEMA_PUSH=false
+  NEED_ADMIN_DEPS=false
+  NEED_ADMIN_BUILD=false
+else
+  CHANGED="$(git diff --name-only "$LAST_SHA" "$CURRENT_SHA" 2>/dev/null || true)"
+  changed_match() { echo "$CHANGED" | grep -qE "$1"; }
+
+  # Backend deps faqat package(-lock).json o'zgarsa
+  changed_match '^package(-lock)?\.json$' || NEED_BACKEND_DEPS=false
+  # Backend build src yoki tsconfig yoki package o'zgarsa, prisma client ham
+  changed_match '^(src/|nest-cli\.json|tsconfig.*\.json|package(-lock)?\.json|prisma/schema\.prisma$)' \
+    || NEED_BACKEND_BUILD=false
+  # Prisma client faqat schema o'zgarsa
+  changed_match '^prisma/schema\.prisma$' || NEED_PRISMA_GEN=false
+  # DB push faqat schema yoki seed o'zgarsa
+  changed_match '^prisma/' || NEED_SCHEMA_PUSH=false
+  # Admin deps faqat admin package(-lock) o'zgarsa
+  changed_match '^admin-panel/package(-lock)?\.json$' || NEED_ADMIN_DEPS=false
+  # Admin build src/public/config o'zgarsa
+  changed_match '^admin-panel/(src/|public/|next\.config|tailwind\.config|postcss\.config|tsconfig\.json|package(-lock)?\.json)' \
+    || NEED_ADMIN_BUILD=false
+
+  ok "O'zgargan: backend_deps=$NEED_BACKEND_DEPS build=$NEED_BACKEND_BUILD prisma=$NEED_PRISMA_GEN admin_deps=$NEED_ADMIN_DEPS admin_build=$NEED_ADMIN_BUILD"
 fi
 
 # ──────────── 4. .env ────────────
@@ -294,47 +360,66 @@ done
 step "6/8 Bot backend (NestJS)"
 
 cd "$APP_DIR"
-npm ci --omit=dev=false --silent 2>&1 | tail -3 || true
 
-ok "Bog'lamlar o'rnatildi"
+if [ "$NEED_BACKEND_DEPS" = "true" ]; then
+  npm ci --silent 2>&1 | tail -3 || true
+  ok "Bog'lamlar o'rnatildi"
+else
+  ok "Bog'lamlar o'zgarmagan — skip"
+fi
 
-npm run prisma:generate >/dev/null 2>&1
-ok "Prisma client generatsiya qilindi"
+if [ "$NEED_PRISMA_GEN" = "true" ]; then
+  npm run prisma:generate >/dev/null 2>&1
+  ok "Prisma client generatsiya qilindi"
+else
+  ok "Prisma schema o'zgarmagan — generate skip"
+fi
 
-# Schema'ni DB ga (db push — non-interactive)
-npx prisma db push --accept-data-loss --skip-generate >/dev/null 2>&1
-ok "Schema sinxronlandi"
+if [ "$NEED_SCHEMA_PUSH" = "true" ]; then
+  npx prisma db push --accept-data-loss --skip-generate >/dev/null 2>&1
+  ok "Schema sinxronlandi"
+  # Seed faqat schema/prisma o'zgarganda — yangi defaultlar uchun.
+  npm run prisma:seed 2>&1 | tail -3
+  ok "Seed bajarildi"
+else
+  ok "DB schema o'zgarmagan — push/seed skip"
+fi
 
-# Seed (idempotent — mavjud ma'lumotni o'zgartirmaydi)
-npm run prisma:seed 2>&1 | tail -3
-ok "Seed bajarildi"
-
-# Build
-npm run build >/dev/null 2>&1
-ok "TypeScript build"
+if [ "$NEED_BACKEND_BUILD" = "true" ]; then
+  npm run build >/dev/null 2>&1
+  ok "TypeScript build"
+else
+  ok "Backend src o'zgarmagan — build skip"
+fi
 
 # ──────────── 7. ADMIN PANEL ────────────
 
 step "7/8 Admin panel (Next.js)"
 
 cd "$APP_DIR/admin-panel"
-npm ci --silent 2>&1 | tail -3 || true
-ok "Admin panel bog'lamlari"
 
-# .env.local
-# Relative URL — brauzer admin panel ochilgan domen orqali API ga ulanadi
-# (nginx /api/* ni backend'ga proxy qiladi). localhost ishlatish noto'g'ri
-# edi: NEXT_PUBLIC_* JS bundle'iga build paytida qotadi va brauzerda
-# foydalanuvchining O'Z mashinasiga so'rov yuboradi → "Network Error".
+if [ "$NEED_ADMIN_DEPS" = "true" ]; then
+  npm ci --silent 2>&1 | tail -3 || true
+  ok "Admin panel bog'lamlari"
+else
+  ok "Admin bog'lamlari o'zgarmagan — skip"
+fi
+
+# .env.local — har safar yoziladi (mazmuni doim bir xil, lekin yo'qolmasin)
+# Relative URL — brauzer admin panel ochilgan domen orqali API ga ulanadi.
+# nginx /api/* ni backend'ga proxy qiladi.
 cat > .env.local <<EOF
 NEXT_PUBLIC_API_URL=/api
 EOF
 
-# Build — to'liq output (xato bo'lsa darhol ko'rinadi)
-if ! npm run build; then
-  fail "Admin panel build muvaffaqiyatsiz tugadi (yuqoridagi xatoga qarang)"
+if [ "$NEED_ADMIN_BUILD" = "true" ]; then
+  if ! npm run build; then
+    fail "Admin panel build muvaffaqiyatsiz tugadi (yuqoridagi xatoga qarang)"
+  fi
+  ok "Admin panel build"
+else
+  ok "Admin src o'zgarmagan — build skip"
 fi
-ok "Admin panel build"
 
 # ──────────── 8. PM2 ────────────
 
@@ -381,21 +466,56 @@ PMEOF
 
 mkdir -p logs
 
-# Mavjud servislarni qayta ishga tushiramiz (yoki yangidan)
-pm2 delete ${APP_NAME}-bot >/dev/null 2>&1 || true
-pm2 delete ${APP_NAME}-admin >/dev/null 2>&1 || true
+# Smart restart:
+# - Agar service'ning kodi o'zgargan bo'lsa, reload qilamiz (zero-downtime).
+# - Agar mavjud bo'lmasa, yangidan ishga tushiramiz.
+# - Agar online bo'lsa va o'zgarmagan bo'lsa, tegmaymiz.
 
-pm2 start ecosystem.config.cjs
-ok "PM2 servislar ishga tushdi"
+pm2_status() {
+  pm2 jlist 2>/dev/null \
+    | grep -oE "\"name\":\"$1\"[^}]*\"status\":\"[^\"]+\"" \
+    | grep -oE '"status":"[^"]+"' \
+    | cut -d'"' -f4 \
+    || echo "missing"
+}
+
+reload_or_start() {
+  local name="$1"
+  local need_restart="$2"
+  local status
+  status="$(pm2_status "$name")"
+
+  if [ "$status" = "online" ]; then
+    if [ "$need_restart" = "true" ]; then
+      pm2 reload "$name" --update-env >/dev/null
+      ok "$name reload (yangi kod)"
+    else
+      ok "$name online — tegmaymiz"
+    fi
+  else
+    # missing/stopped/errored — yangi config bilan ishga tushiramiz
+    pm2 delete "$name" >/dev/null 2>&1 || true
+    pm2 start ecosystem.config.cjs --only "$name" >/dev/null
+    ok "$name ishga tushdi"
+  fi
+}
+
+reload_or_start "${APP_NAME}-bot" "$NEED_BACKEND_BUILD"
+reload_or_start "${APP_NAME}-admin" "$NEED_ADMIN_BUILD"
 
 pm2 save >/dev/null
-ok "PM2 startup saqlandi"
+ok "PM2 holati saqlandi"
 
 # Reboot bo'lganda avtomatik ishga tushadigan qilish (faqat birinchi marta)
 if ! systemctl is-enabled pm2-root >/dev/null 2>&1; then
   pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
   ok "PM2 systemd avtorun yoqildi"
 fi
+
+# ──────────── DEPLOY SHA SAQLASH ────────────
+# Faqat hammasi muvaffaqiyatli bo'lgandan keyin yozamiz, shunda keyingi deploy
+# diff'ni shu nuqtadan boshlab hisoblaydi.
+echo "$CURRENT_SHA" > "$LAST_SHA_FILE"
 
 # ──────────── XULOSA ────────────
 
@@ -420,7 +540,11 @@ echo "  pm2 restart ${APP_NAME}-bot  — qayta ishga tushirish"
 echo "  pm2 monit                   — real-time monitor"
 echo
 yellow "🔄 Yangilash uchun:"
-echo "  bash $0"
+echo "  cd $APP_DIR && git pull && bash deploy/deploy-server.sh"
+echo "  (faqat o'zgargan qismlar qayta quriladi — tezroq)"
+echo
+yellow "🔁 Hammasini majburiy qayta qurish kerak bo'lsa:"
+echo "  FORCE=true bash deploy/deploy-server.sh"
 echo
 if [ "${BOT_TOKEN:-}" = "PASTE_BOT_TOKEN_HERE" ] || [ -z "$(grep '^BOT_TOKEN=' "$ENV_FILE" | cut -d= -f2)" ]; then
   red "⚠️  ENVIRONMENT TO'LDIRILMAGAN!"

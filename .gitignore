@@ -35,3 +35,6 @@ prisma/migrations/dev/
 # Tests
 coverage/
 .nyc_output/
+
+# Deploy script cache (server-side; tracks last deployed git SHA)
+.deploy-cache/
