@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { useAuthStore } from '@/stores/auth.store';
@@ -27,7 +27,10 @@ export default function DashboardLayout({
         <Header />
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto w-full max-w-7xl px-4 py-6 lg:px-8 lg:py-8">
-            {children}
+            {/* Suspense — useSearchParams (date-range hook) prerender'da
+                bail qilmasligi uchun majburiy boundary. Aks holda Next.js
+                "Generating static pages" bosqichida xato bilan to'xtaydi. */}
+            <Suspense fallback={null}>{children}</Suspense>
           </div>
         </main>
       </div>

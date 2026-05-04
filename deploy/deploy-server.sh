@@ -330,8 +330,10 @@ cat > .env.local <<EOF
 NEXT_PUBLIC_API_URL=/api
 EOF
 
-# Build
-npm run build 2>&1 | tail -5
+# Build — to'liq output (xato bo'lsa darhol ko'rinadi)
+if ! npm run build; then
+  fail "Admin panel build muvaffaqiyatsiz tugadi (yuqoridagi xatoga qarang)"
+fi
 ok "Admin panel build"
 
 # ──────────── 8. PM2 ────────────
