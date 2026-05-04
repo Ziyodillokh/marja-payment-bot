@@ -13,6 +13,10 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useCreateBroadcast } from '@/lib/queries/useBroadcasts';
 import { MediaUploader } from '@/components/shared/media-uploader';
+import {
+  MessageButtonsEditor,
+  type CustomButton,
+} from '@/components/shared/message-buttons-editor';
 import type { BroadcastFilter } from '@/types';
 
 const FILTERS: Array<{
@@ -32,6 +36,9 @@ export default function NewBroadcastPage() {
   const [text, setText] = useState('');
   const [mediaFileId, setMediaFileId] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<string | null>(null);
+  const [videoIsNote, setVideoIsNote] = useState(false);
+  const [payButton, setPayButton] = useState(false);
+  const [customButtons, setCustomButtons] = useState<CustomButton[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const create = useCreateBroadcast();
@@ -43,6 +50,11 @@ export default function NewBroadcastPage() {
         text,
         mediaFileId: mediaFileId ?? undefined,
         mediaType: mediaType ?? undefined,
+        videoIsNote: videoIsNote && (mediaType === 'video' || mediaType === null),
+        payButton,
+        customButtons: customButtons.filter(
+          (b) => b.label.trim() && b.url.trim(),
+        ),
       },
       {
         onSuccess: () => {
@@ -109,16 +121,42 @@ export default function NewBroadcastPage() {
             <CardHeader className="pb-3">
               <CardTitle>2. Media (ixtiyoriy)</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-subtle/40 px-3 py-2.5 transition-colors hover:bg-subtle">
+                <input
+                  type="checkbox"
+                  checked={videoIsNote}
+                  onChange={(e) => {
+                    setVideoIsNote(e.target.checked);
+                    if (mediaType === 'video') {
+                      setMediaFileId(null);
+                      setMediaType(null);
+                    }
+                  }}
+                  className="mt-0.5 h-4 w-4 cursor-pointer accent-foreground"
+                />
+                <div className="space-y-0.5">
+                  <div className="text-sm font-medium">
+                    Dumaloq video (video note)
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Telegram&apos;da dumaloq videoxabar sifatida yuboriladi.{' '}
+                    <strong>kvadrat</strong>, max <strong>60 sekund</strong>.
+                    Matn alohida pastida chiqadi.
+                  </div>
+                </div>
+              </label>
+
               <MediaUploader
                 fileId={mediaFileId}
                 mediaType={mediaType}
+                videoIsNote={videoIsNote}
                 onChange={(fid, mt) => {
                   setMediaFileId(fid);
                   setMediaType(mt);
                 }}
               />
-              <p className="mt-2 text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
                 Rasm, video, audio yoki hujjat. Matn caption sifatida ishlatiladi.
               </p>
             </CardContent>
@@ -141,6 +179,21 @@ export default function NewBroadcastPage() {
               <div className="text-xs text-muted-foreground">
                 {text.length} belgi
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Step 4: tugmalar */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>4. Tugmalar (ixtiyoriy)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MessageButtonsEditor
+                payButton={payButton}
+                customButtons={customButtons}
+                onPayButtonChange={setPayButton}
+                onCustomButtonsChange={setCustomButtons}
+              />
             </CardContent>
           </Card>
 

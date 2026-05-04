@@ -56,6 +56,9 @@ export class AutoMessagesService {
         text: dto.text,
         mediaFileId: dto.mediaFileId,
         mediaType: dto.mediaType,
+        videoIsNote: dto.videoIsNote ?? false,
+        payButton: dto.payButton ?? false,
+        customButtons: (dto.customButtons ?? []) as object,
         isActive: dto.isActive ?? true,
       },
     });
@@ -63,9 +66,15 @@ export class AutoMessagesService {
 
   async update(id: string, dto: UpdateAutoMessageDto): Promise<AutoMessage> {
     await this.getById(id);
+    const { customButtons, ...rest } = dto;
     return this.prisma.autoMessage.update({
       where: { id },
-      data: { ...dto },
+      data: {
+        ...rest,
+        ...(customButtons !== undefined
+          ? { customButtons: customButtons as object }
+          : {}),
+      },
     });
   }
 

@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, extractErrorMessage } from '@/lib/api';
-import type { BroadcastFilter } from '@/types';
+import type { BroadcastFilter, CustomButton } from '@/types';
 
 export function useBroadcasts() {
   return useQuery({
@@ -18,17 +18,22 @@ export function useBroadcast(id: string) {
   });
 }
 
+export interface BroadcastInput {
+  text: string;
+  mediaFileId?: string;
+  mediaType?: string;
+  videoIsNote?: boolean;
+  payButton?: boolean;
+  customButtons?: CustomButton[];
+  filterType: BroadcastFilter;
+  userIds?: string[];
+  scheduledAt?: string;
+}
+
 export function useCreateBroadcast() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      text: string;
-      mediaFileId?: string;
-      mediaType?: string;
-      filterType: BroadcastFilter;
-      userIds?: string[];
-      scheduledAt?: string;
-    }) => api.broadcasts.create(input),
+    mutationFn: (input: BroadcastInput) => api.broadcasts.create(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['broadcasts'] });
       toast.success('Broadcast yaratildi');

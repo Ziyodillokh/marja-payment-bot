@@ -26,6 +26,12 @@ interface Props {
   mediaType: string | null;
   onChange: (fileId: string | null, mediaType: string | null) => void;
   className?: string;
+  /**
+   * Yuklanayotgan video dumaloq (videoNote) sifatida saqlanadimi.
+   * Faqat video uchun ishlatiladi. Telegram'ga sendVideoNote bilan
+   * yuborilib, video_note file_id qaytariladi.
+   */
+  videoIsNote?: boolean;
 }
 
 export function MediaUploader({
@@ -33,6 +39,7 @@ export function MediaUploader({
   mediaType,
   onChange,
   className,
+  videoIsNote = false,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -40,7 +47,14 @@ export function MediaUploader({
   const [previewName, setPreviewName] = useState<string | null>(null);
 
   const upload = useMutation({
-    mutationFn: (file: File) => api.broadcasts.uploadMedia(file),
+    mutationFn: (file: File) => {
+      const isVideo = file.type.startsWith('video/');
+      return api.broadcasts.uploadMedia(
+        file,
+        undefined,
+        videoIsNote && isVideo,
+      );
+    },
     onSuccess: (data) => {
       onChange(data.fileId, data.mediaType);
       toast.success("Media yuklandi");

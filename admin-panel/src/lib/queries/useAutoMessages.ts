@@ -1,7 +1,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api, extractErrorMessage } from '@/lib/api';
-import type { AutoMessage, TriggerType } from '@/types';
+import type { AutoMessage, CustomButton, TriggerType } from '@/types';
+
+export interface AutoMessageInput {
+  name: string;
+  triggerType: TriggerType;
+  triggerAfter: number;
+  text: string;
+  mediaFileId?: string;
+  mediaType?: string;
+  videoIsNote?: boolean;
+  payButton?: boolean;
+  customButtons?: CustomButton[];
+  isActive?: boolean;
+}
 
 export function useAutoMessages() {
   return useQuery({
@@ -13,15 +26,7 @@ export function useAutoMessages() {
 export function useCreateAutoMessage() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      name: string;
-      triggerType: TriggerType;
-      triggerAfter: number;
-      text: string;
-      mediaFileId?: string;
-      mediaType?: string;
-      isActive?: boolean;
-    }) => api.autoMessages.create(input),
+    mutationFn: (input: AutoMessageInput) => api.autoMessages.create(input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['auto-messages'] });
       toast.success('Saqlandi');

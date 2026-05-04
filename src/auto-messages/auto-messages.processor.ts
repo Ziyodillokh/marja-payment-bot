@@ -23,6 +23,7 @@ import {
   AUTO_MESSAGE_JOBS,
   QUEUE_NAMES,
 } from '../common/enums/queue-names.enum';
+import { buildInlineKeyboard } from '../common/utils/inline-buttons.util';
 
 @Processor(QUEUE_NAMES.AUTO_MESSAGE)
 export class AutoMessagesProcessor extends WorkerHost {
@@ -110,43 +111,76 @@ export class AutoMessagesProcessor extends WorkerHost {
 
   private async send(
     telegramId: bigint,
-    message: { text: string; mediaFileId: string | null; mediaType: string | null },
+    message: {
+      text: string;
+      mediaFileId: string | null;
+      mediaType: string | null;
+      videoIsNote: boolean;
+      payButton: boolean;
+      customButtons: unknown;
+    },
   ): Promise<void> {
     const chatId = telegramId.toString();
     const api = this.botService.bot.api;
+    const replyMarkup = buildInlineKeyboard(
+      message.payButton,
+      message.customButtons,
+    );
 
-    if (!message.mediaFileId) {
-      await api.sendMessage(chatId, message.text, { parse_mode: 'HTML' });
+    // VideoNote — caption va reply_markup'ni qo'llab-quvvatlamaydi.
+    // Shuning uchun avval videoNote, keyin matn (+inline keyboard) alohida.
+    if (
+      message.mediaFileId &&
+      message.mediaType === 'video' &&
+      message.videoIsNote
+    ) {
+      try {
+        await api.sendVideoNote(chatId, message.mediaFileId);
+      } catch (err) {
+        this.logger.warn(
+          `sendVideoNote fail, fallback sendVideo: ${(err as Error).message}`,
+        );
+        await api.sendVideo(chatId, message.mediaFileId);
+      }
+      await api.sendMessage(chatId, message.text, {
+        parse_mode: 'HTML',
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      });
       return;
     }
 
+    if (!message.mediaFileId) {
+      await api.sendMessage(chatId, message.text, {
+        parse_mode: 'HTML',
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      });
+      return;
+    }
+
+    const opts = {
+      caption: message.text,
+      parse_mode: 'HTML' as const,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+    };
+
     switch (message.mediaType) {
       case 'photo':
-        await api.sendPhoto(chatId, message.mediaFileId, {
-          caption: message.text,
-          parse_mode: 'HTML',
-        });
+        await api.sendPhoto(chatId, message.mediaFileId, opts);
         break;
       case 'video':
-        await api.sendVideo(chatId, message.mediaFileId, {
-          caption: message.text,
-          parse_mode: 'HTML',
-        });
+        await api.sendVideo(chatId, message.mediaFileId, opts);
         break;
       case 'document':
-        await api.sendDocument(chatId, message.mediaFileId, {
-          caption: message.text,
-          parse_mode: 'HTML',
-        });
+        await api.sendDocument(chatId, message.mediaFileId, opts);
         break;
       case 'audio':
-        await api.sendAudio(chatId, message.mediaFileId, {
-          caption: message.text,
-          parse_mode: 'HTML',
-        });
+        await api.sendAudio(chatId, message.mediaFileId, opts);
         break;
       default:
-        await api.sendMessage(chatId, message.text, { parse_mode: 'HTML' });
+        await api.sendMessage(chatId, message.text, {
+          parse_mode: 'HTML',
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+        });
     }
   }
 }

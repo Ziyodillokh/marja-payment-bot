@@ -18,7 +18,7 @@ import type { UtmFunnelMetrics } from '@/types';
 const STAGES = [
   { key: 'totalUsers', label: 'Kelgan' },
   { key: 'phoneProvided', label: 'Telefon' },
-  { key: 'paymentInitiated', label: 'To\'lov' },
+  { key: 'paymentInitiated', label: 'To\'lov tugmasi' },
   { key: 'paymentSubmitted', label: 'Chek' },
   { key: 'paymentApproved', label: 'Tasdiq.' },
 ] as const;

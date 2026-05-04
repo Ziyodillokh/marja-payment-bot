@@ -2,17 +2,20 @@
 
 import { InlineKeyboard } from 'grammy';
 
+// Bot tomonida 'pay' callback handler shu satrni kutadi (welcome, retry, broadcast, auto-msg).
+export const PAY_BUTTON_DATA = 'pay';
+
 // Welcome ekranidagi tugmalar — to'lov + foydalanuvchi menyusi.
 export const payInlineKeyboard = (): InlineKeyboard =>
   new InlineKeyboard()
-    .text("💳 To'lov qilish", 'pay')
+    .text("💳 To'lov qilish", PAY_BUTTON_DATA)
     .row()
     .text('💎 Balansim', 'balance')
     .text('🔗 Referral', 'referral')
     .text('🏆 TOP', 'leaderboard');
 
 export const retryPayInlineKeyboard = (): InlineKeyboard =>
-  new InlineKeyboard().text('💳 Qayta to\'lash', 'pay');
+  new InlineKeyboard().text('💳 Qayta to\'lash', PAY_BUTTON_DATA);
 
 export const channelInlineKeyboard = (link: string): InlineKeyboard =>
   new InlineKeyboard().url('🔗 Kanalga o\'tish', link);

@@ -150,6 +150,12 @@ model Broadcast {
   text        String          @db.Text
   mediaFileId String?
   mediaType   String?
+  // Video bo'lsa, dumaloq (sendVideoNote) holatda yuboriladimi
+  videoIsNote Boolean         @default(false)
+  // Inline tugma — auto-built "💳 To'lov qilish"
+  payButton   Boolean         @default(false)
+  // Maxsus tugmalar (URL): JSON [{label,url}], har biri alohida qator
+  customButtons Json          @default("[]")
   parseMode   String?         @default("HTML")
   filterType  BroadcastFilter
   userIds     String[]        @default([])
@@ -195,6 +201,12 @@ model AutoMessage {
   text         String      @db.Text
   mediaFileId  String?
   mediaType    String?
+  // Video bo'lsa, dumaloq (sendVideoNote) holatda yuboriladimi
+  videoIsNote  Boolean     @default(false)
+  // Inline tugma — auto-built "💳 To'lov qilish"
+  payButton    Boolean     @default(false)
+  // Maxsus tugmalar (URL): JSON [{label,url}], har biri alohida qator
+  customButtons Json       @default("[]")
   isActive     Boolean     @default(true)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt

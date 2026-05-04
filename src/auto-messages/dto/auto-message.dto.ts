@@ -1,13 +1,26 @@
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   Min,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { TriggerType } from '@prisma/client';
+
+export class CustomButtonDto {
+  @IsString()
+  @IsNotEmpty()
+  label!: string;
+
+  @IsUrl({ require_protocol: true })
+  url!: string;
+}
 
 export class CreateAutoMessageDto {
   @IsString()
@@ -32,6 +45,20 @@ export class CreateAutoMessageDto {
   @IsOptional()
   @IsString()
   mediaType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  videoIsNote?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  payButton?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomButtonDto)
+  customButtons?: CustomButtonDto[];
 
   @IsOptional()
   @IsBoolean()
@@ -63,6 +90,20 @@ export class UpdateAutoMessageDto {
   @IsOptional()
   @IsString()
   mediaType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  videoIsNote?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  payButton?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomButtonDto)
+  customButtons?: CustomButtonDto[];
 
   @IsOptional()
   @IsBoolean()

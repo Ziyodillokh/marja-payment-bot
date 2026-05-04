@@ -67,11 +67,19 @@ export interface Setting {
   updatedAt: string;
 }
 
+export interface CustomButton {
+  label: string;
+  url: string;
+}
+
 export interface Broadcast {
   id: string;
   text: string;
   mediaFileId: string | null;
   mediaType: string | null;
+  videoIsNote: boolean;
+  payButton: boolean;
+  customButtons: CustomButton[];
   parseMode: string | null;
   filterType: BroadcastFilter;
   userIds: string[];
@@ -94,6 +102,9 @@ export interface AutoMessage {
   text: string;
   mediaFileId: string | null;
   mediaType: string | null;
+  videoIsNote: boolean;
+  payButton: boolean;
+  customButtons: CustomButton[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -235,6 +235,9 @@ export const api = {
       text: string;
       mediaFileId?: string;
       mediaType?: string;
+      videoIsNote?: boolean;
+      payButton?: boolean;
+      customButtons?: { label: string; url: string }[];
       parseMode?: string;
       filterType: BroadcastFilter;
       userIds?: string[];
@@ -262,10 +265,12 @@ export const api = {
     uploadMedia: async (
       file: File,
       type?: 'photo' | 'video' | 'document' | 'audio',
+      isNote = false,
     ): Promise<{ fileId: string; mediaType: string }> => {
       const fd = new FormData();
       fd.append('file', file);
       if (type) fd.append('type', type);
+      if (isNote) fd.append('isNote', 'true');
       const { data } = await http.post<{ fileId: string; mediaType: string }>(
         '/broadcasts/upload-media',
         fd,
@@ -287,6 +292,9 @@ export const api = {
       text: string;
       mediaFileId?: string;
       mediaType?: string;
+      videoIsNote?: boolean;
+      payButton?: boolean;
+      customButtons?: { label: string; url: string }[];
       isActive?: boolean;
     }): Promise<AutoMessage> => {
       const { data } = await http.post<AutoMessage>('/auto-messages', input);

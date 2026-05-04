@@ -24,6 +24,10 @@ import {
   useUpdateAutoMessage,
 } from '@/lib/queries/useAutoMessages';
 import { MediaUploader } from '@/components/shared/media-uploader';
+import {
+  MessageButtonsEditor,
+  type CustomButton,
+} from '@/components/shared/message-buttons-editor';
 import type { AutoMessage, TriggerType } from '@/types';
 
 // Foydalanuvchi so'roviga ko'ra 2 ta asosiy trigger:
@@ -71,7 +75,23 @@ export function AutoMessageForm({ initial }: Props) {
   const [mediaType, setMediaType] = useState<string | null>(
     initial?.mediaType ?? null,
   );
+  const [videoIsNote, setVideoIsNote] = useState<boolean>(
+    initial?.videoIsNote ?? false,
+  );
+  const [payButton, setPayButton] = useState<boolean>(
+    initial?.payButton ?? false,
+  );
+  const [customButtons, setCustomButtons] = useState<CustomButton[]>(
+    Array.isArray(initial?.customButtons)
+      ? (initial!.customButtons as CustomButton[])
+      : [],
+  );
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
+
+  // Dumaloq video uchun mavjud media tip mos kelmasa avtomatik o'chiramiz
+  // (chunki videoIsNote faqat video uchun ma'noli).
+  const wantNoteEffective =
+    videoIsNote && (mediaType === 'video' || mediaType === null);
 
   const triggerAfterSec = (() => {
     const n = parseInt(num, 10);
@@ -85,29 +105,27 @@ export function AutoMessageForm({ initial }: Props) {
   const handleSubmit = async () => {
     if (!valid) return;
 
+    const cleanButtons = customButtons.filter(
+      (b) => b.label.trim() && b.url.trim(),
+    );
+
+    const payload = {
+      name: name.trim(),
+      triggerType,
+      triggerAfter: triggerAfterSec,
+      text: text.trim(),
+      mediaFileId: mediaFileId ?? undefined,
+      mediaType: mediaType ?? undefined,
+      videoIsNote: wantNoteEffective,
+      payButton,
+      customButtons: cleanButtons,
+      isActive,
+    };
+
     if (initial) {
-      await update.mutateAsync({
-        id: initial.id,
-        input: {
-          name: name.trim(),
-          triggerType,
-          triggerAfter: triggerAfterSec,
-          text: text.trim(),
-          mediaFileId: mediaFileId ?? undefined,
-          mediaType: mediaType ?? undefined,
-          isActive,
-        },
-      });
+      await update.mutateAsync({ id: initial.id, input: payload });
     } else {
-      await create.mutateAsync({
-        name: name.trim(),
-        triggerType,
-        triggerAfter: triggerAfterSec,
-        text: text.trim(),
-        mediaFileId: mediaFileId ?? undefined,
-        mediaType: mediaType ?? undefined,
-        isActive,
-      });
+      await create.mutateAsync(payload);
     }
     router.push('/auto-messages');
   };
@@ -189,16 +207,48 @@ export function AutoMessageForm({ initial }: Props) {
           <CardHeader className="pb-3">
             <CardTitle>Media (ixtiyoriy)</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {/* Dumaloq video toggle — video yuklashdan OLDIN belgilanishi kerak,
+                chunki upload paytida sendVideoNote yoki sendVideo aniqlanadi. */}
+            <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-subtle/40 px-3 py-2.5 transition-colors hover:bg-subtle">
+              <input
+                type="checkbox"
+                checked={videoIsNote}
+                onChange={(e) => {
+                  setVideoIsNote(e.target.checked);
+                  // Video allaqachon yuklangan bo'lsa, foydalanuvchi qayta yuklashi kerak
+                  // (file_id turi har xil: video vs video_note). Shuni ogohlantirish o'rniga
+                  // tugmani o'zgartirsa, mavjudni tozalab qo'yamiz.
+                  if (mediaType === 'video') {
+                    setMediaFileId(null);
+                    setMediaType(null);
+                  }
+                }}
+                className="mt-0.5 h-4 w-4 cursor-pointer accent-foreground"
+              />
+              <div className="space-y-0.5">
+                <div className="text-sm font-medium">
+                  Dumaloq video (video note)
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Telegram&apos;da dumaloq videoxabar sifatida yuboriladi. Video{' '}
+                  <strong>kvadrat</strong> bo&apos;lishi va max{' '}
+                  <strong>60 sekund</strong> bo&apos;lishi kerak. Matn alohida
+                  xabar sifatida pastida chiqadi.
+                </div>
+              </div>
+            </label>
+
             <MediaUploader
               fileId={mediaFileId}
               mediaType={mediaType}
+              videoIsNote={videoIsNote}
               onChange={(fid, mt) => {
                 setMediaFileId(fid);
                 setMediaType(mt);
               }}
             />
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               Rasm, video, audio yoki hujjat. Matn caption sifatida ishlatiladi.
             </p>
           </CardContent>
@@ -219,6 +269,21 @@ export function AutoMessageForm({ initial }: Props) {
             <div className="text-xs text-muted-foreground">
               {text.length} belgi
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Inline tugmalar */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle>Tugmalar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MessageButtonsEditor
+              payButton={payButton}
+              customButtons={customButtons}
+              onPayButtonChange={setPayButton}
+              onCustomButtonsChange={setCustomButtons}
+            />
           </CardContent>
         </Card>
 

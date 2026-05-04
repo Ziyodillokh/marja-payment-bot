@@ -1,12 +1,26 @@
 import {
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsEnum,
+  IsNotEmpty,
   IsOptional,
   IsString,
+  IsUrl,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { BroadcastFilter } from '@prisma/client';
+
+export class CustomButtonDto {
+  @IsString()
+  @IsNotEmpty()
+  label!: string;
+
+  @IsUrl({ require_protocol: true })
+  url!: string;
+}
 
 export class CreateBroadcastDto {
   @IsString()
@@ -19,6 +33,20 @@ export class CreateBroadcastDto {
   @IsOptional()
   @IsString()
   mediaType?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  videoIsNote?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  payButton?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CustomButtonDto)
+  customButtons?: CustomButtonDto[];
 
   @IsOptional()
   @IsString()

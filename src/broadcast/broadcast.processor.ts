@@ -29,6 +29,7 @@ import {
   BROADCAST_JOBS,
   QUEUE_NAMES,
 } from '../common/enums/queue-names.enum';
+import { buildInlineKeyboard } from '../common/utils/inline-buttons.util';
 
 interface SendOnePayload {
   broadcastId: string;
@@ -232,25 +233,53 @@ export class BroadcastProcessor extends WorkerHost {
     }
   }
 
-  /** @returns Telegram message_id (edit uchun kerak) */
+  /** @returns Telegram message_id (edit uchun kerak — matn xabarida)  */
   private async send(
     telegramId: bigint,
     broadcast: Broadcast,
   ): Promise<number> {
     const chatId = telegramId.toString();
     const api = this.botService.bot.api;
-    const parseMode = broadcast.parseMode ?? 'HTML';
+    const parseMode = (broadcast.parseMode ?? 'HTML') as 'HTML' | 'MarkdownV2';
+    const replyMarkup = buildInlineKeyboard(
+      broadcast.payButton,
+      broadcast.customButtons,
+    );
+
+    // VideoNote — caption/reply_markup yo'q. Avval videoNote, keyin matn (+keyboard) alohida.
+    // edit uchun matn xabar message_id'ni saqlaymiz.
+    if (
+      broadcast.mediaFileId &&
+      broadcast.mediaType === 'video' &&
+      broadcast.videoIsNote
+    ) {
+      try {
+        await api.sendVideoNote(chatId, broadcast.mediaFileId);
+      } catch (err) {
+        this.logger.warn(
+          `sendVideoNote fail, fallback sendVideo: ${(err as Error).message}`,
+        );
+        await api.sendVideo(chatId, broadcast.mediaFileId);
+      }
+      const m = await api.sendMessage(chatId, broadcast.text, {
+        parse_mode: parseMode,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
+      });
+      return m.message_id;
+    }
 
     if (!broadcast.mediaFileId) {
       const m = await api.sendMessage(chatId, broadcast.text, {
-        parse_mode: parseMode as 'HTML' | 'MarkdownV2',
+        parse_mode: parseMode,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       });
       return m.message_id;
     }
 
     const opts = {
       caption: broadcast.text,
-      parse_mode: parseMode as 'HTML' | 'MarkdownV2',
+      parse_mode: parseMode,
+      ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
     };
 
     let m;
@@ -269,7 +298,8 @@ export class BroadcastProcessor extends WorkerHost {
         break;
       default:
         m = await api.sendMessage(chatId, broadcast.text, {
-          parse_mode: parseMode as 'HTML' | 'MarkdownV2',
+          parse_mode: parseMode,
+          ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
         });
     }
     return m.message_id;

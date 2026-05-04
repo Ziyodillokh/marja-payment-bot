@@ -100,7 +100,8 @@ export function FunnelComparisonTable({ data, loading }: Props) {
                     onClick={() => toggle('phoneProvided')}
                   />
                   <ThSort
-                    label="To'lov"
+                    label="To'lov tugmasi"
+                    title="Foydalanuvchi 'To'lov qilish' tugmasini bosgan (chek yuborilgan emas)"
                     active={sortKey === 'paymentInitiated'}
                     dir={sortDir}
                     onClick={() => toggle('paymentInitiated')}
@@ -205,17 +206,20 @@ function ThSort({
   active,
   dir,
   onClick,
+  title,
 }: {
   label: string;
   active: boolean;
   dir: 'asc' | 'desc';
   onClick: () => void;
+  title?: string;
 }) {
   return (
     <th className="px-4 py-3 text-left font-medium">
       <button
         type="button"
         onClick={onClick}
+        title={title}
         className={cn(
           'inline-flex items-center gap-1 transition-colors hover:text-foreground',
           active && 'text-foreground',
