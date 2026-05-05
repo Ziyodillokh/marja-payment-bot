@@ -1,14 +1,17 @@
 // Yagona date-range yordam funksiyalari.
-// Format: "YYYY-MM-DD" — URL parametrida shu, server tomondan ham shu.
-// Server bu sanani parse qilganda `from` -> 00:00:00, `to` -> 23:59:59 deb
-// kengaytiradi (full-day inclusion).
+//
+// Sana formati: "YYYY-MM-DD" — URL'da, API'da, butun pipeline'da shu.
+// Backend bu sanani **Tashkent vaqti** sifatida talqin qiladi (UTC+5):
+//   from=2026-05-04 -> kun boshi 00:00 +05:00 = UTC 2026-05-03T19:00:00Z
+//   to=2026-05-04   -> kun oxiri 23:59:59.999 +05:00 = UTC 2026-05-04T18:59:59.999Z
+//
+// Shuning uchun frontend admin'ning brauzer TZ'iga e'tibor bermaydi —
+// "bugun" har doim Tashkent kuni.
 
 import {
-  endOfDay,
   endOfMonth,
   format,
   parseISO,
-  startOfDay,
   startOfMonth,
   subDays,
   subMonths,
@@ -21,6 +24,21 @@ export interface DateRange {
 
 export const DATE_FORMAT = 'yyyy-MM-dd';
 
+/** "Hozir Tashkent vaqti bo'yicha qaysi sana" → "YYYY-MM-DD" */
+export function tashkentTodayString(d: Date = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Tashkent' });
+}
+
+/**
+ * Tashkent kunini Date obyektiga aylantirish (date-fns operatsiyalari uchun).
+ * Brauzerning local TZ'ida shu yil/oy/kunni qaytaradi — date-fns subDays/format
+ * uchun bu yetarli (faqat YYYY-MM-DD ko'rinishidan foydalanamiz).
+ */
+export function tashkentDate(d: Date = new Date()): Date {
+  const [y, m, day] = tashkentTodayString(d).split('-').map(Number);
+  return new Date(y, m - 1, day);
+}
+
 export function formatDate(d: Date): string {
   return format(d, DATE_FORMAT);
 }
@@ -31,26 +49,24 @@ export function parseDate(s: string | undefined): Date | undefined {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-/** Foydalanuvchiga ko'rsatish uchun ISO -> ko'rinarli format. */
+/** Foydalanuvchiga ko'rsatish uchun: "5 May 2026" */
 export function displayDate(s: string | undefined): string {
   const d = parseDate(s);
   if (!d) return '—';
   return format(d, 'd MMM yyyy');
 }
 
-/** API ga yuborish uchun: full-day inclusive ISO timestamps. */
+/**
+ * API ga yuborish: YYYY-MM-DD ni o'zgartirmasdan uzatamiz.
+ * Backend (parseDateQuery) buni Tashkent kunining boshi/oxiri sifatida
+ * tarjima qiladi.
+ */
 export function rangeToApiParams(
   range: DateRange,
 ): { from?: string; to?: string } {
   const params: { from?: string; to?: string } = {};
-  if (range.from) {
-    const d = parseDate(range.from);
-    if (d) params.from = startOfDay(d).toISOString();
-  }
-  if (range.to) {
-    const d = parseDate(range.to);
-    if (d) params.to = endOfDay(d).toISOString();
-  }
+  if (range.from) params.from = range.from;
+  if (range.to) params.to = range.to;
   return params;
 }
 
@@ -66,42 +82,51 @@ export const DATE_PRESETS: DatePreset[] = [
     key: 'today',
     label: 'Bugun',
     build: () => {
-      const now = new Date();
-      return { from: formatDate(now), to: formatDate(now) };
+      const t = tashkentTodayString();
+      return { from: t, to: t };
     },
   },
   {
     key: 'last7',
     label: 'Oxirgi 7 kun',
     build: () => {
-      const now = new Date();
-      return { from: formatDate(subDays(now, 6)), to: formatDate(now) };
+      const today = tashkentDate();
+      return {
+        from: formatDate(subDays(today, 6)),
+        to: formatDate(today),
+      };
     },
   },
   {
     key: 'last30',
     label: 'Oxirgi 30 kun',
     build: () => {
-      const now = new Date();
-      return { from: formatDate(subDays(now, 29)), to: formatDate(now) };
+      const today = tashkentDate();
+      return {
+        from: formatDate(subDays(today, 29)),
+        to: formatDate(today),
+      };
     },
   },
   {
     key: 'last90',
     label: 'Oxirgi 90 kun',
     build: () => {
-      const now = new Date();
-      return { from: formatDate(subDays(now, 89)), to: formatDate(now) };
+      const today = tashkentDate();
+      return {
+        from: formatDate(subDays(today, 89)),
+        to: formatDate(today),
+      };
     },
   },
   {
     key: 'thisMonth',
     label: 'Bu oy',
     build: () => {
-      const now = new Date();
+      const today = tashkentDate();
       return {
-        from: formatDate(startOfMonth(now)),
-        to: formatDate(endOfMonth(now)),
+        from: formatDate(startOfMonth(today)),
+        to: formatDate(endOfMonth(today)),
       };
     },
   },
@@ -109,7 +134,7 @@ export const DATE_PRESETS: DatePreset[] = [
     key: 'lastMonth',
     label: "O'tgan oy",
     build: () => {
-      const prev = subMonths(new Date(), 1);
+      const prev = subMonths(tashkentDate(), 1);
       return {
         from: formatDate(startOfMonth(prev)),
         to: formatDate(endOfMonth(prev)),

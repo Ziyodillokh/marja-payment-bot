@@ -18,6 +18,12 @@ import { CurrentAdmin } from '../api/auth/current-admin.decorator';
 import type { JwtPayload } from '../api/auth/jwt.strategy';
 import { UtmService } from './utm.service';
 import { UtmAnalyticsService } from './utm-analytics.service';
+import { parseDateQuery } from '../common/utils/parse-date-query.util';
+import {
+  tashkentTodayString,
+  tashkentDayStart,
+  tashkentDayEnd,
+} from '../common/utils/tashkent-time.util';
 import {
   CreateUtmSourceDto,
   UpdateUtmSourceDto,
@@ -112,31 +118,35 @@ export class UtmController {
     @Query('utmSourceId') utmSourceId?: string,
   ) {
     return this.analytics.getFunnelByUtmSource({
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
       utmSourceId: this.parseSourceFilter(utmSourceId),
     });
   }
 
   @Get('utm-analytics/daily')
   async daily(
-    @Query('from') from: string,
-    @Query('to') to: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('utmSourceId') utmSourceId?: string,
   ) {
-    if (!from || !to) {
-      // Default: oxirgi 30 kun
-      const toDate = new Date();
-      const fromDate = new Date(toDate.getTime() - 30 * 24 * 3600 * 1000);
-      return this.analytics.getDaily({
-        from: fromDate,
-        to: toDate,
-        utmSourceId: this.parseSourceFilter(utmSourceId),
-      });
+    let fromDate = parseDateQuery(from, 'start');
+    let toDate = parseDateQuery(to, 'end');
+
+    if (!fromDate || !toDate) {
+      // Default: oxirgi 30 kun (Tashkent vaqti bo'yicha)
+      const today = tashkentTodayString();
+      const [y, m, d] = today.split('-').map(Number);
+      const todayUtcMs = Date.UTC(y, m - 1, d);
+      const fromUtcMs = todayUtcMs - 29 * 24 * 3600 * 1000;
+      const fromStr = new Date(fromUtcMs).toISOString().slice(0, 10);
+      fromDate = tashkentDayStart(fromStr);
+      toDate = tashkentDayEnd(today);
     }
+
     return this.analytics.getDaily({
-      from: new Date(from),
-      to: new Date(to),
+      from: fromDate,
+      to: toDate,
       utmSourceId: this.parseSourceFilter(utmSourceId),
     });
   }
@@ -148,8 +158,8 @@ export class UtmController {
   ) {
     // Comparison — funnel'ning qisqartirilgan ko'rinishi (barcha source'lar)
     return this.analytics.getFunnelByUtmSource({
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
+      from: parseDateQuery(from, 'start'),
+      to: parseDateQuery(to, 'end'),
     });
   }
 

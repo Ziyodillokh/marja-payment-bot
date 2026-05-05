@@ -222,7 +222,10 @@ export class UtmAnalyticsService {
 
   // ──────────── Top sources (dashboard widget uchun) ────────────
 
-  async getTopSources(limit = 5): Promise<
+  async getTopSources(
+    limit = 5,
+    filter?: { from?: Date; to?: Date },
+  ): Promise<
     Array<{
       utmSourceId: string | null;
       code: string;
@@ -231,6 +234,11 @@ export class UtmAnalyticsService {
       approved: number;
     }>
   > {
+    // Sana diapazoni — User.createdAt bo'yicha. Boundary'lar UTC Date'lar.
+    // Postgres parametrlari $queryRaw bilan to'g'ridan-to'g'ri bog'lanadi.
+    const from = filter?.from ?? new Date(0); // sentry: 1970
+    const to = filter?.to ?? new Date(Date.now() + 24 * 3600 * 1000); // ertaga
+
     const rows = await this.prisma.$queryRaw<
       Array<{
         utmSourceId: string | null;
@@ -248,6 +256,7 @@ export class UtmAnalyticsService {
         COUNT(*) FILTER (WHERE u.status = 'APPROVED')::bigint as approved
       FROM "User" u
       LEFT JOIN "UtmSource" s ON u."utmSourceId" = s.id
+      WHERE u."createdAt" >= ${from} AND u."createdAt" <= ${to}
       GROUP BY u."utmSourceId", s.code, s.name
       ORDER BY "totalUsers" DESC
       LIMIT ${limit}

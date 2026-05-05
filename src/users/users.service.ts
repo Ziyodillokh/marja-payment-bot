@@ -5,6 +5,7 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, User, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { tashkentTodayStart } from '../common/utils/tashkent-time.util';
 
 export interface UserListFilter {
   status?: UserStatus;
@@ -223,22 +224,34 @@ export class UsersService {
     return { items, total, page, limit };
   }
 
-  async stats(): Promise<{
+  async stats(filter?: {
+    from?: Date;
+    to?: Date;
+  }): Promise<{
     total: number;
     byStatus: Record<UserStatus, number>;
     todayNew: number;
   }> {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    // Diapazon filteri — total va byStatus ushbu chegaralar ichidagi userlarga.
+    const where: Prisma.UserWhereInput = {};
+    if (filter?.from || filter?.to) {
+      where.createdAt = {};
+      if (filter.from) where.createdAt.gte = filter.from;
+      if (filter.to) where.createdAt.lte = filter.to;
+    }
+
+    // "Bugun" hisobi — Tashkent vaqti, har doim shu kunga (filterdan mustaqil).
+    const todayStart = tashkentTodayStart();
 
     const [total, grouped, todayNew] = await this.prisma.$transaction([
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
       this.prisma.user.groupBy({
         by: ['status'],
+        where,
         orderBy: { status: 'asc' },
         _count: { _all: true },
       }),
-      this.prisma.user.count({ where: { createdAt: { gte: startOfDay } } }),
+      this.prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
     ]);
 
     const byStatus = Object.fromEntries(

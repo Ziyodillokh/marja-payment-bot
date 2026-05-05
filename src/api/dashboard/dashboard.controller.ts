@@ -4,6 +4,7 @@ import { UsersService } from '../../users/users.service';
 import { PaymentsService } from '../../payments/payments.service';
 import { UtmAnalyticsService } from '../../utm/utm-analytics.service';
 import { bigintToJson } from '../../common/utils/bigint.util';
+import { parseDateQuery } from '../../common/utils/parse-date-query.util';
 
 @UseGuards(JwtAuthGuard)
 @Controller('dashboard')
@@ -19,13 +20,13 @@ export class DashboardController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ): Promise<unknown> {
-    const fromDate = from ? new Date(from) : undefined;
-    const toDate = to ? new Date(to) : undefined;
+    const fromDate = parseDateQuery(from, 'start');
+    const toDate = parseDateQuery(to, 'end');
 
     const [userStats, paymentStats, topUtmSources] = await Promise.all([
-      this.users.stats(),
+      this.users.stats({ from: fromDate, to: toDate }),
       this.payments.stats(fromDate, toDate),
-      this.utmAnalytics.getTopSources(5),
+      this.utmAnalytics.getTopSources(5, { from: fromDate, to: toDate }),
     ]);
 
     return bigintToJson({
