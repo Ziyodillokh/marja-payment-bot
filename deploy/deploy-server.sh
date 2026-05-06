@@ -59,12 +59,14 @@ random_password() {
 
 check_port_free() {
   local port="$1"
-  # Bizning konteynerimiz allaqachon shu portni ishlatayotgan bo'lsa — OK (re-deploy)
+
+  # 1) Docker konteynerlarimiz (postgres/redis)
   if docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
        | grep -E "^marja-.*:${port}->" >/dev/null; then
     return 0
   fi
-  # Listener PID'ini ss orqali olamiz
+
+  # Listener PID'i
   local pid
   pid="$(ss -tlnp 2>/dev/null \
            | grep ":${port}\b" \
@@ -73,13 +75,49 @@ check_port_free() {
   if [ -z "$pid" ]; then
     return 0  # hech kim listen qilmayapti
   fi
-  # Listener'ning ishchi katalogi bizning APP_DIR ichidami? Agar shunday bo'lsa,
-  # bu bizning PM2 jarayonimiz (marja-bot yoki marja-admin) — re-deploy uchun OK.
+
+  # Bir necha usul bilan tekshiramiz — bittasi mos kelsa bizniki:
+  # 2) cwd APP_DIR ichidami
   local cwd
   cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
   case "$cwd" in
     "$APP_DIR"|"$APP_DIR"/*) return 0 ;;
   esac
+
+  # 3) cmdline'da marja yoki APP_DIR mavjudmi (PM2 cluster worker'lar uchun)
+  local cmdline
+  cmdline="$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null || true)"
+  case "$cmdline" in
+    *marja*|*"$APP_DIR"*) return 0 ;;
+  esac
+
+  # 4) PM2 jarayoni'mi (marja-* yoki ularning worker'lari)
+  if command -v pm2 >/dev/null 2>&1; then
+    local marja_pids
+    marja_pids="$(pm2 jlist 2>/dev/null \
+                    | tr ',{' '\n' \
+                    | grep -oP '"(?:pid|pm_id)":\K[0-9]+' \
+                    | sort -u || true)"
+    if echo "$marja_pids" | grep -qx "$pid"; then
+      return 0
+    fi
+    # Parent PID (ppid) — cluster worker'da PM2 god ota bo'lishi mumkin
+    local ppid
+    ppid="$(awk '{print $4}' "/proc/${pid}/stat" 2>/dev/null || true)"
+    if [ -n "$ppid" ] && echo "$marja_pids" | grep -qx "$ppid"; then
+      return 0
+    fi
+    # Granchild — ppid ham PM2 cluster master bo'lishi mumkin, uning otasi god
+    local pppid
+    if [ -n "$ppid" ]; then
+      pppid="$(awk '{print $4}' "/proc/${ppid}/stat" 2>/dev/null || true)"
+      if [ -n "$pppid" ] && echo "$marja_pids" | grep -qx "$pppid"; then
+        return 0
+      fi
+    fi
+  fi
+
+  warn "Port ${port} band: pid=${pid} cwd=${cwd:-?} cmdline=${cmdline:0:80}"
   return 1
 }
 
