@@ -59,66 +59,38 @@ random_password() {
 
 check_port_free() {
   local port="$1"
-
-  # 1) Docker konteynerlarimiz (postgres/redis)
+  # Docker konteynerlarimiz (postgres/redis) — re-deploy paytida tegmaymiz
   if docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
        | grep -E "^marja-.*:${port}->" >/dev/null; then
     return 0
   fi
-
-  # Listener PID'i
-  local pid
-  pid="$(ss -tlnp 2>/dev/null \
-           | grep ":${port}\b" \
-           | grep -oP 'pid=\K[0-9]+' \
-           | head -n1 || true)"
-  if [ -z "$pid" ]; then
-    return 0  # hech kim listen qilmayapti
+  # PM2 marja-* servislari skript boshida to'xtatilgan bo'lishi kerak
+  # (stop_app_processes). Demak port haqiqatan bo'sh bo'lishi shart.
+  # Agar boshqa servis ishlatayotgan bo'lsa — diagnostika ma'lumoti chiqaramiz.
+  local listener
+  listener="$(ss -tlnp 2>/dev/null | grep ":${port}\b" || true)"
+  if [ -n "$listener" ]; then
+    warn "Port ${port} band: ${listener}"
+    return 1
   fi
+  return 0
+}
 
-  # Bir necha usul bilan tekshiramiz — bittasi mos kelsa bizniki:
-  # 2) cwd APP_DIR ichidami
-  local cwd
-  cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
-  case "$cwd" in
-    "$APP_DIR"|"$APP_DIR"/*) return 0 ;;
-  esac
-
-  # 3) cmdline'da marja yoki APP_DIR mavjudmi (PM2 cluster worker'lar uchun)
-  local cmdline
-  cmdline="$(tr '\0' ' ' < "/proc/${pid}/cmdline" 2>/dev/null || true)"
-  case "$cmdline" in
-    *marja*|*"$APP_DIR"*) return 0 ;;
-  esac
-
-  # 4) PM2 jarayoni'mi (marja-* yoki ularning worker'lari)
-  if command -v pm2 >/dev/null 2>&1; then
-    local marja_pids
-    marja_pids="$(pm2 jlist 2>/dev/null \
-                    | tr ',{' '\n' \
-                    | grep -oP '"(?:pid|pm_id)":\K[0-9]+' \
-                    | sort -u || true)"
-    if echo "$marja_pids" | grep -qx "$pid"; then
-      return 0
+# PM2 marja-* servislari portlarni egallashidan oldin ularni to'xtatish.
+# Deploy oxirida (8/8 PM2 step) yangidan ishga tushiriladi.
+stop_app_processes() {
+  if ! command -v pm2 >/dev/null 2>&1; then return 0; fi
+  local stopped=false
+  for proc in "${APP_NAME}-bot" "${APP_NAME}-admin"; do
+    if pm2 describe "$proc" >/dev/null 2>&1; then
+      pm2 stop "$proc" >/dev/null 2>&1 || true
+      stopped=true
     fi
-    # Parent PID (ppid) — cluster worker'da PM2 god ota bo'lishi mumkin
-    local ppid
-    ppid="$(awk '{print $4}' "/proc/${pid}/stat" 2>/dev/null || true)"
-    if [ -n "$ppid" ] && echo "$marja_pids" | grep -qx "$ppid"; then
-      return 0
-    fi
-    # Granchild — ppid ham PM2 cluster master bo'lishi mumkin, uning otasi god
-    local pppid
-    if [ -n "$ppid" ]; then
-      pppid="$(awk '{print $4}' "/proc/${ppid}/stat" 2>/dev/null || true)"
-      if [ -n "$pppid" ] && echo "$marja_pids" | grep -qx "$pppid"; then
-        return 0
-      fi
-    fi
+  done
+  if [ "$stopped" = "true" ]; then
+    # Port'larni TIME_WAIT'dan toza bo'lishini kutamiz (qisqa)
+    sleep 1
   fi
-
-  warn "Port ${port} band: pid=${pid} cwd=${cwd:-?} cmdline=${cmdline:0:80}"
-  return 1
 }
 
 # ──────────── 1. PREREQUISITES ────────────
@@ -132,12 +104,17 @@ fi
 . /etc/os-release
 ok "OS: $PRETTY_NAME"
 
+# Eski PM2 marja-* jarayonlarini to'xtatamiz — portlar 100% bo'shaydi.
+# Deploy oxirida yangi kod bilan qayta ishga tushiriladi.
+stop_app_processes
+ok "Eski marja-bot/marja-admin to'xtatildi (agar mavjud bo'lsa)"
+
 # Tekshirish: portlar bo'shmi
 for port in "$DB_PORT" "$REDIS_PORT" "$BOT_PORT" "$ADMIN_PORT"; do
   if check_port_free "$port"; then
     ok "Port ${port} bo'sh"
   else
-    fail "Port ${port} band — boshqa port tanlang yoki band servisni to'xtating"
+    fail "Port ${port} band — boshqa servis tomonidan ishlatilmoqda"
   fi
 done
 
@@ -504,42 +481,18 @@ PMEOF
 
 mkdir -p logs
 
-# Smart restart:
-# - Agar service'ning kodi o'zgargan bo'lsa, reload qilamiz (zero-downtime).
-# - Agar mavjud bo'lmasa, yangidan ishga tushiramiz.
-# - Agar online bo'lsa va o'zgarmagan bo'lsa, tegmaymiz.
-
-pm2_status() {
-  pm2 jlist 2>/dev/null \
-    | grep -oE "\"name\":\"$1\"[^}]*\"status\":\"[^\"]+\"" \
-    | grep -oE '"status":"[^"]+"' \
-    | cut -d'"' -f4 \
-    || echo "missing"
-}
-
-reload_or_start() {
+# Servislar skript boshida (step 1) to'xtatilgan, shuning uchun yangidan ishga
+# tushiramiz. delete + start kombinatsiyasi har safar ecosystem config'ni qayta
+# o'qiydi (env yoki path o'zgarsa ham).
+start_app() {
   local name="$1"
-  local need_restart="$2"
-  local status
-  status="$(pm2_status "$name")"
-
-  if [ "$status" = "online" ]; then
-    if [ "$need_restart" = "true" ]; then
-      pm2 reload "$name" --update-env >/dev/null
-      ok "$name reload (yangi kod)"
-    else
-      ok "$name online — tegmaymiz"
-    fi
-  else
-    # missing/stopped/errored — yangi config bilan ishga tushiramiz
-    pm2 delete "$name" >/dev/null 2>&1 || true
-    pm2 start ecosystem.config.cjs --only "$name" >/dev/null
-    ok "$name ishga tushdi"
-  fi
+  pm2 delete "$name" >/dev/null 2>&1 || true
+  pm2 start ecosystem.config.cjs --only "$name" >/dev/null
+  ok "$name ishga tushdi"
 }
 
-reload_or_start "${APP_NAME}-bot" "$NEED_BACKEND_BUILD"
-reload_or_start "${APP_NAME}-admin" "$NEED_ADMIN_BUILD"
+start_app "${APP_NAME}-bot"
+start_app "${APP_NAME}-admin"
 
 pm2 save >/dev/null
 ok "PM2 holati saqlandi"
