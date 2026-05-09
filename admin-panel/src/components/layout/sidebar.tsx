@@ -12,6 +12,7 @@ import {
   Link2,
   LogOut,
   Settings as SettingsIcon,
+  Trophy,
   TrendingUp,
   Users as UsersIcon,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ const NAV: Array<{ href: string; label: string; icon: typeof UsersIcon }> = [
   { href: '/payments', label: "To'lovlar", icon: CreditCard },
   { href: '/broadcasts', label: 'Xabarlar', icon: Bell },
   { href: '/auto-messages', label: 'Avto xabarlar', icon: Clock },
+  { href: '/reyting', label: 'Reyting', icon: Trophy },
   { href: '/content', label: 'Kontent', icon: FileText },
   { href: '/utm-sources', label: 'UTM manbalar', icon: Link2 },
   { href: '/utm-analytics', label: 'UTM statistika', icon: TrendingUp },
