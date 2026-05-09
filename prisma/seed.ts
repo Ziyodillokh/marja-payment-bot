@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS: Array<{ key: string; value: string }> = [
     value: 'false', // "true" → dumaloq video (sendVideoNote)
   },
   {
+    key: 'welcome_media_type',
+    value: '', // 'video' | 'photo' | '' (yo'q)
+  },
+  {
     key: 'welcome_text',
     value:
       '<b>🎓 Bizning kursimizga xush kelibsiz!</b>\n\n' +

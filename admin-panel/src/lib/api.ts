@@ -206,25 +206,32 @@ export const api = {
       const { data } = await http.put<{ ok: true }>(`/settings/${key}`, { value });
       return data;
     },
-    uploadVideo: async (
+    uploadWelcomeMedia: async (
       file: File,
       isNote = false,
-    ): Promise<{ fileId: string; isNote: boolean }> => {
+    ): Promise<{ fileId: string; mediaType: 'video' | 'photo'; isNote: boolean }> => {
       const fd = new FormData();
-      fd.append('video', file);
+      fd.append('file', file);
       fd.append('isNote', isNote ? 'true' : 'false');
-      const { data } = await http.post<{ fileId: string; isNote: boolean }>(
-        '/settings/upload-video',
-        fd,
-        { headers: { 'Content-Type': 'multipart/form-data' } },
-      );
+      const { data } = await http.post<{
+        fileId: string;
+        mediaType: 'video' | 'photo';
+        isNote: boolean;
+      }>('/settings/upload-welcome-media', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       return data;
     },
-    /** Welcome video URL — Telegram'dan stream proxy. Cache-buster bilan. */
-    welcomeVideoUrl: (cacheBuster?: string): string => {
+    /** Welcome media'ni o'chirish (file_id va type'ni bo'shatadi). */
+    deleteWelcomeMedia: async (): Promise<{ ok: true }> => {
+      const { data } = await http.delete<{ ok: true }>('/settings/welcome-media');
+      return data;
+    },
+    /** Welcome media URL — Telegram'dan stream proxy. Photo yoki video. */
+    welcomeMediaUrl: (cacheBuster?: string): string => {
       const token = authStorage.getToken() ?? '';
       const cb = cacheBuster ? `&v=${encodeURIComponent(cacheBuster)}` : '';
-      return `${baseURL}/settings/welcome-video?token=${encodeURIComponent(token)}${cb}`;
+      return `${baseURL}/settings/welcome-media?token=${encodeURIComponent(token)}${cb}`;
     },
   },
 

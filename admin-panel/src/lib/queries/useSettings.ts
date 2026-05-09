@@ -22,14 +22,26 @@ export function useUpdateSetting() {
   });
 }
 
-export function useUploadVideo() {
+export function useUploadWelcomeMedia() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ file, isNote }: { file: File; isNote: boolean }) =>
-      api.settings.uploadVideo(file, isNote),
+      api.settings.uploadWelcomeMedia(file, isNote),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['settings'] });
+      toast.success(data.mediaType === 'photo' ? 'Rasm yuklandi' : 'Video yuklandi');
+    },
+    onError: (err) => toast.error(extractErrorMessage(err)),
+  });
+}
+
+export function useDeleteWelcomeMedia() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.settings.deleteWelcomeMedia(),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['settings'] });
-      toast.success('Video yuklandi');
+      toast.success("Media o'chirildi");
     },
     onError: (err) => toast.error(extractErrorMessage(err)),
   });

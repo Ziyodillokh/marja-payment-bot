@@ -52,8 +52,8 @@ export class PaymentHandler {
       `Karta raqami: <code>${cardNumber || '—'}</code>\n` +
       `Karta egasi: ${cardHolder || '—'}\n` +
       `To'lov summasi: <b>${priceText} so'm</b>\n\n` +
-      `⚠️ Yuqoridagi karta raqamiga <b>${priceText} so'm</b> summa o'tkazing va to'lov chekini ` +
-      `RASM shaklida shu botga yuboring.`;
+      `✔️ Yuqoridagi karta raqamiga to'lovni amalga oshirib, chekni rasm shaklida shu botga yuboring, ` +
+      `sizga yopiq kanalga qo'shilish havolasini yuboramiz.`;
 
     await ctx.answerCallbackQuery();
     await ctx.reply(text, { parse_mode: 'HTML' });

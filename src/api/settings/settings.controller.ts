@@ -1,12 +1,14 @@
 // Settings API.
-// upload-video: ConfigService.STORAGE_CHAT_ID ga video yuborib, file_id'ni olib qaytaradi va
-// `welcome_video_file_id` setting'ga yozadi.
-// welcome-video: hozirgi welcome video'ni Telegram'dan stream qilib qaytaradi (preview uchun).
+// upload-welcome-media: STORAGE_CHAT_ID ga video YOKI photo yuboradi, file_id va
+//   media type'ni qaytaradi va welcome settings'larga yozadi.
+// welcome-media (GET): hozirgi welcome media'ni Telegram'dan stream qiladi (preview).
+// welcome-media (DELETE): welcome media'ni o'chiradi (file_id va type'ni bo'shatadi).
 
 import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -52,37 +54,48 @@ export class SettingsApiController {
   }
 
   /**
-   * Welcome video upload.
+   * Welcome media upload (video YOKI photo).
    *
    * Form-data:
-   *   video      — fayl (binary)
-   *   isNote     — "true" bo'lsa videoNote (dumaloq) sifatida yuboriladi
+   *   file       — fayl (binary)
+   *   isNote     — "true" bo'lsa videoNote (dumaloq) sifatida yuboriladi (faqat video)
    *
-   * VideoNote uchun talablar (Telegram):
-   *   - square aspect ratio
-   *   - max 60 sekund
-   *   - h.264 codec
-   * Aks holda Telegram fail beradi.
+   * Mime'ga qarab avtomatik detect qilinadi (image/* → photo, video/* → video).
+   * Eski `video` field nomi ham qabul qilinadi (legacy frontend uchun).
    */
-  @Post('upload-video')
-  @UseInterceptors(FileInterceptor('video'))
-  async uploadVideo(
+  @Post('upload-welcome-media')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadWelcomeMedia(
     @UploadedFile() file?: Express.Multer.File,
     @Body('isNote') isNote?: string,
-  ): Promise<{ fileId: string; isNote: boolean }> {
-    if (!file) throw new BadRequestException('video file is required');
+  ): Promise<{ fileId: string; mediaType: 'video' | 'photo'; isNote: boolean }> {
+    if (!file) throw new BadRequestException('file is required');
     const storageChatId = this.config.get<string>('STORAGE_CHAT_ID');
     if (!storageChatId) {
       throw new BadRequestException('STORAGE_CHAT_ID is not configured');
     }
 
-    const wantNote = isNote === 'true';
+    const isVideo = file.mimetype.startsWith('video/');
+    const isImage = file.mimetype.startsWith('image/');
+    if (!isVideo && !isImage) {
+      throw new BadRequestException(
+        `Faqat video yoki rasm qo'llab-quvvatlanadi (mime: ${file.mimetype})`,
+      );
+    }
+
+    const wantNote = isVideo && isNote === 'true';
     const inputFile = new InputFile(file.buffer, file.originalname);
     const api = this.botService.bot.api;
 
     let fileId: string | undefined;
+    let mediaType: 'video' | 'photo';
 
-    if (wantNote) {
+    if (isImage) {
+      const sent = await api.sendPhoto(storageChatId, inputFile);
+      // Telegram bir nechta size variant qaytaradi — eng kattasini olamiz
+      fileId = sent.photo?.[sent.photo.length - 1]?.file_id;
+      mediaType = 'photo';
+    } else if (wantNote) {
       try {
         const sent = await api.sendVideoNote(storageChatId, inputFile);
         fileId = sent.video_note?.file_id;
@@ -92,9 +105,11 @@ export class SettingsApiController {
             `Dumaloq video square (kvadrat) bo'lishi va 60 sekunddan kam bo'lishi kerak.`,
         );
       }
+      mediaType = 'video';
     } else {
       const sent = await api.sendVideo(storageChatId, inputFile);
       fileId = sent.video?.file_id;
+      mediaType = 'video';
     }
 
     if (!fileId) {
@@ -102,21 +117,38 @@ export class SettingsApiController {
     }
 
     await this.settings.set(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID, fileId);
+    await this.settings.set(SETTINGS_KEYS.WELCOME_MEDIA_TYPE, mediaType);
     await this.settings.set(
       SETTINGS_KEYS.WELCOME_VIDEO_IS_NOTE,
       wantNote ? 'true' : 'false',
     );
-    return { fileId, isNote: wantNote };
+    return { fileId, mediaType, isNote: wantNote };
   }
 
   /**
-   * Welcome video preview — Telegram'dan stream qilib qaytaradi.
-   * <video src="/api/settings/welcome-video?token={JWT}" /> bilan ishlatiladi.
+   * Welcome media'ni o'chirish — file_id, media_type va is_note'ni bo'shatadi.
+   * /start bosgan foydalanuvchiga endi media chiqmaydi (faqat matn + tugma).
    */
-  @Get('welcome-video')
-  async welcomeVideo(@Res() res: Response): Promise<void> {
+  @Delete('welcome-media')
+  async deleteWelcomeMedia(): Promise<{ ok: true }> {
+    await this.settings.set(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID, '');
+    await this.settings.set(SETTINGS_KEYS.WELCOME_MEDIA_TYPE, '');
+    await this.settings.set(SETTINGS_KEYS.WELCOME_VIDEO_IS_NOTE, 'false');
+    return { ok: true };
+  }
+
+  /**
+   * Welcome media preview — Telegram'dan stream qilib qaytaradi.
+   * Photo bo'lsa Content-Type image/jpeg, video bo'lsa video/mp4.
+   * <img src="/api/settings/welcome-media?token=..."/> yoki video src bilan ishlatiladi.
+   */
+  @Get('welcome-media')
+  async welcomeMedia(@Res() res: Response): Promise<void> {
     const fileId = await this.settings.get(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID);
-    if (!fileId) throw new NotFoundException('Welcome video not set');
+    if (!fileId) throw new NotFoundException('Welcome media not set');
+
+    const mediaType =
+      (await this.settings.get(SETTINGS_KEYS.WELCOME_MEDIA_TYPE)) || 'video';
 
     const token = this.config.get<string>('BOT_TOKEN');
     if (!token) throw new NotFoundException('BOT_TOKEN not configured');
@@ -131,10 +163,13 @@ export class SettingsApiController {
         throw new NotFoundException(`Telegram fetch failed: ${upstream.status}`);
       }
 
+      const fallbackContentType =
+        mediaType === 'photo' ? 'image/jpeg' : 'video/mp4';
+
       res.setHeader('Cache-Control', 'private, max-age=300');
       res.setHeader(
         'Content-Type',
-        upstream.headers.get('content-type') ?? 'video/mp4',
+        upstream.headers.get('content-type') ?? fallbackContentType,
       );
       const len = upstream.headers.get('content-length');
       if (len) res.setHeader('Content-Length', len);
@@ -148,8 +183,14 @@ export class SettingsApiController {
       res.end();
     } catch (err) {
       throw new NotFoundException(
-        `Failed to fetch video: ${(err as Error).message}`,
+        `Failed to fetch media: ${(err as Error).message}`,
       );
     }
+  }
+
+  /** Legacy endpoint (eski admin panel build'lari uchun) — yangi endpoint'ga forward */
+  @Get('welcome-video')
+  async welcomeVideoLegacy(@Res() res: Response): Promise<void> {
+    return this.welcomeMedia(res);
   }
 }

@@ -6,9 +6,11 @@ import {
   DollarSign,
   FileText,
   Hash,
+  Image as ImageIcon,
   Link as LinkIcon,
   Loader2,
   Save,
+  Trash2,
   UploadCloud,
   Video,
 } from 'lucide-react';
@@ -20,13 +22,19 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useSettings, useUpdateSetting, useUploadVideo } from '@/lib/queries/useSettings';
+import {
+  useSettings,
+  useUpdateSetting,
+  useUploadWelcomeMedia,
+  useDeleteWelcomeMedia,
+} from '@/lib/queries/useSettings';
 import { formatCardNumber, formatPrice } from '@/lib/utils';
 import { api } from '@/lib/api';
 
 const KEYS = {
   WELCOME_VIDEO_FILE_ID: 'welcome_video_file_id',
   WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note',
+  WELCOME_MEDIA_TYPE: 'welcome_media_type',
   WELCOME_TEXT: 'welcome_text',
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',
@@ -57,8 +65,12 @@ export default function ContentPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <WelcomeVideoSection
+          <WelcomeMediaSection
             currentFileId={map[KEYS.WELCOME_VIDEO_FILE_ID]}
+            currentMediaType={
+              (map[KEYS.WELCOME_MEDIA_TYPE] as 'video' | 'photo' | '') ||
+              (map[KEYS.WELCOME_VIDEO_FILE_ID] ? 'video' : '')
+            }
             currentIsNote={map[KEYS.WELCOME_VIDEO_IS_NOTE] === 'true'}
           />
           <WelcomeTextSection initial={map[KEYS.WELCOME_TEXT] ?? ''} />
@@ -78,17 +90,20 @@ export default function ContentPage() {
   );
 }
 
-// ─────────── WELCOME VIDEO ───────────
+// ─────────── WELCOME MEDIA (video YOKI rasm) ───────────
 
-function WelcomeVideoSection({
+function WelcomeMediaSection({
   currentFileId,
+  currentMediaType,
   currentIsNote,
 }: {
   currentFileId?: string;
+  currentMediaType: 'video' | 'photo' | '';
   currentIsNote: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const upload = useUploadVideo();
+  const upload = useUploadWelcomeMedia();
+  const remove = useDeleteWelcomeMedia();
   const [dragOver, setDragOver] = useState(false);
   const [isNote, setIsNote] = useState(currentIsNote);
 
@@ -100,54 +115,107 @@ function WelcomeVideoSection({
       alert('Fayl juda katta (max 50MB)');
       return;
     }
-    upload.mutate({ file, isNote });
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
+      alert("Faqat rasm yoki video qabul qilinadi");
+      return;
+    }
+    upload.mutate({ file, isNote: isVideo && isNote });
   };
+
+  const handleRemove = () => {
+    if (!confirm("Welcome media o'chirilsinmi? Yangi yuklamaguncha /start bosgan foydalanuvchilarga media chiqmaydi.")) {
+      return;
+    }
+    remove.mutate();
+  };
+
+  const hasMedia = !!currentFileId && !!currentMediaType;
+  const isPhoto = currentMediaType === 'photo';
+  const showAsRound = currentMediaType === 'video' && currentIsNote;
 
   return (
     <SettingSection
       icon={Video}
-      title="Welcome video"
-      description="Bot foydalanuvchini birinchi marta uchratganda yuboradigan video. Telegram'ga upload qilingandan keyin file_id saqlanadi."
+      title="Welcome media"
+      description="Bot /start bosganda yuboradigan rasm yoki video. Yangisini yuklash bilan eski avtomatik almashinadi."
     >
       <div className="space-y-3">
-        {currentFileId && (
+        {hasMedia && (
           <div className="space-y-2">
             <div
               className={`overflow-hidden border border-border bg-black ${
-                currentIsNote
+                showAsRound
                   ? 'mx-auto aspect-square w-64 rounded-full'
                   : 'rounded-md'
               }`}
             >
-              <video
-                key={currentFileId}
-                controls
-                preload="metadata"
-                className={
-                  currentIsNote
-                    ? 'h-full w-full object-cover'
-                    : 'w-full max-h-96'
-                }
-                src={api.settings.welcomeVideoUrl(currentFileId)}
-              >
-                Sizning brauzeringiz video tegini qo&apos;llab-quvvatlamaydi.
-              </video>
+              {isPhoto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={currentFileId}
+                  src={api.settings.welcomeMediaUrl(currentFileId)}
+                  alt="Welcome rasm"
+                  className="w-full max-h-96 object-contain"
+                />
+              ) : (
+                <video
+                  key={currentFileId}
+                  controls
+                  preload="metadata"
+                  className={
+                    showAsRound
+                      ? 'h-full w-full object-cover'
+                      : 'w-full max-h-96'
+                  }
+                  src={api.settings.welcomeMediaUrl(currentFileId)}
+                >
+                  Sizning brauzeringiz video tegini qo&apos;llab-quvvatlamaydi.
+                </video>
+              )}
             </div>
             <div className="flex items-center justify-between rounded-md border border-border bg-subtle/40 px-3 py-2">
-              <div>
-                <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                  file_id {currentIsNote && '· dumaloq (video note)'}
-                </div>
-                <div className="mt-0.5 font-mono text-xs">
-                  {currentFileId.slice(0, 32)}
-                  {currentFileId.length > 32 && '...'}
+              <div className="flex items-center gap-2">
+                {isPhoto ? (
+                  <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <Video className="h-4 w-4 text-muted-foreground" />
+                )}
+                <div>
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    {isPhoto
+                      ? 'Rasm'
+                      : showAsRound
+                        ? 'Video · dumaloq (video note)'
+                        : 'Video'}
+                  </div>
+                  <div className="mt-0.5 font-mono text-xs">
+                    {currentFileId!.slice(0, 28)}
+                    {currentFileId!.length > 28 && '...'}
+                  </div>
                 </div>
               </div>
-              <span className="text-xs text-success">✓ Yuklangan</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleRemove}
+                disabled={remove.isPending}
+                className="text-destructive hover:text-destructive"
+              >
+                {remove.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                O&apos;chirish
+              </Button>
             </div>
           </div>
         )}
 
+        {/* Dumaloq video toggle — faqat video uchun ma'noli, lekin har doim ko'rsatamiz */}
         <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-subtle/40 px-3 py-2.5 transition-colors hover:bg-subtle">
           <input
             type="checkbox"
@@ -160,9 +228,10 @@ function WelcomeVideoSection({
               Dumaloq video (video note)
             </div>
             <div className="text-xs text-muted-foreground">
-              Telegram&apos;da dumaloq videoxabar sifatida yuboriladi.
-              Talab: <strong>kvadrat</strong> aspect, max{' '}
-              <strong>60 sekund</strong>, h.264 codec.
+              Faqat video yuklaganda kuchga kiradi. Telegram&apos;da dumaloq
+              videoxabar sifatida yuboriladi. Talab:{' '}
+              <strong>kvadrat</strong>, max <strong>60 sekund</strong>, h.264
+              codec.
             </div>
           </div>
         </label>
@@ -187,7 +256,7 @@ function WelcomeVideoSection({
           <input
             ref={inputRef}
             type="file"
-            accept="video/*"
+            accept="video/*,image/*"
             className="hidden"
             onChange={(e) => handleFile(e.target.files?.[0])}
           />
@@ -200,12 +269,13 @@ function WelcomeVideoSection({
             <>
               <UploadCloud className="h-6 w-6 text-muted-foreground" />
               <div className="text-sm font-medium">
-                Faylni shu yerga tashlang yoki bosing
+                {hasMedia
+                  ? 'Yangi rasm yoki video yuklash (eski almashtiriladi)'
+                  : 'Faylni shu yerga tashlang yoki bosing'}
               </div>
               <div className="text-xs text-muted-foreground">
-                {isNote
-                  ? 'Dumaloq video sifatida yuklanadi · max 50MB'
-                  : 'MP4, MOV · max 50MB'}
+                Rasm (JPG/PNG) yoki video (MP4/MOV) · max 50MB
+                {isNote && ' · video uchun dumaloq rejimi yoqilgan'}
               </div>
             </>
           )}

@@ -1,8 +1,11 @@
 // Setting modelidagi kalitlarning typed nomlari.
 
 export const SETTINGS_KEYS = {
+  // Welcome media — file_id har qanday media uchun (legacy nom saqlangan).
+  // mediaType: 'video' | 'photo' | '' (mavjud emas).
   WELCOME_VIDEO_FILE_ID: 'welcome_video_file_id',
-  WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note', // "true" → dumaloq (sendVideoNote)
+  WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note', // "true" → dumaloq (faqat video)
+  WELCOME_MEDIA_TYPE: 'welcome_media_type',       // 'video' | 'photo' | ''
   WELCOME_TEXT: 'welcome_text',
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',

@@ -1,13 +1,14 @@
 // Welcome bo'limini yuboradigan helper handler.
 //
-// Yangi yondashuv (UX yaxshilash):
-// 1. Video YOKI VideoNote (dumaloq, settings.welcome_video_is_note bo'yicha)
-// 2. Welcome text + price + inline button — BIR XABAR (alohida "Kurs narxi" yo'q)
+// Tartibda yuboriladi:
+// 1. Media — agar mavjud bo'lsa: photo, video yoki videoNote (dumaloq).
+// 2. Welcome text + price + inline button — BIR XABAR.
+//
+// Media turi `welcome_media_type` setting'idan o'qiladi ('photo' | 'video' | '').
+// Eski yozuvlar uchun (mediaType bo'sh, file_id bor) — video deb tahmin qilinadi.
 //
 // VideoNote talablari (Telegram):
-//   - Square aspect ratio
-//   - Max 60 sekund
-//   - H.264 codec
+//   - Square aspect ratio, max 60 sekund, H.264 codec
 //   Aks holda Telegram fail beradi va biz oddiy video sifatida fallback qilamiz.
 
 import { Injectable, Logger } from '@nestjs/common';
@@ -25,30 +26,43 @@ export class WelcomeHandler {
   constructor(private readonly settings: SettingsService) {}
 
   async send(ctx: BotContext): Promise<void> {
-    const [videoFileId, isNote, welcomeText, price] = await Promise.all([
-      this.settings.get(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID),
-      this.settings.get(SETTINGS_KEYS.WELCOME_VIDEO_IS_NOTE),
-      this.settings.get(SETTINGS_KEYS.WELCOME_TEXT),
-      this.settings.get(SETTINGS_KEYS.COURSE_PRICE),
-    ]);
+    const [mediaFileId, mediaType, isNote, welcomeText, price] =
+      await Promise.all([
+        this.settings.get(SETTINGS_KEYS.WELCOME_VIDEO_FILE_ID),
+        this.settings.get(SETTINGS_KEYS.WELCOME_MEDIA_TYPE),
+        this.settings.get(SETTINGS_KEYS.WELCOME_VIDEO_IS_NOTE),
+        this.settings.get(SETTINGS_KEYS.WELCOME_TEXT),
+        this.settings.get(SETTINGS_KEYS.COURSE_PRICE),
+      ]);
 
-    // ──────── 1. Video / VideoNote ────────
-    if (videoFileId) {
+    // ──────── 1. Media (photo / video / videoNote) ────────
+    // Eski yozuvlar uchun fallback: mediaType bo'sh bo'lsa va file_id bor bo'lsa,
+    // video deb tahmin qilamiz (avval faqat video qo'llab-quvvatlanardi).
+    const effectiveType = mediaType || (mediaFileId ? 'video' : '');
+
+    if (mediaFileId && effectiveType === 'photo') {
+      try {
+        await ctx.replyWithPhoto(mediaFileId);
+      } catch (err) {
+        this.logger.warn(
+          `Welcome photo yuborib bo'lmadi: ${(err as Error).message}`,
+        );
+      }
+    } else if (mediaFileId && effectiveType === 'video') {
       const wantNote = isNote === 'true';
       try {
         if (wantNote) {
-          await ctx.replyWithVideoNote(videoFileId);
+          await ctx.replyWithVideoNote(mediaFileId);
         } else {
-          await ctx.replyWithVideo(videoFileId);
+          await ctx.replyWithVideo(mediaFileId);
         }
       } catch (err) {
-        // VideoNote yuborib bo'lmasa (square emas, uzun, va h.k.) — oddiy video sifatida fallback.
         if (wantNote && err instanceof GrammyError) {
           this.logger.warn(
-            `VideoNote yuborib bo'lmadi (${err.description}) — sendVideo bilan fallback`,
+            `VideoNote yuborib bo'lmadi (${err.description}) — sendVideo fallback`,
           );
           try {
-            await ctx.replyWithVideo(videoFileId);
+            await ctx.replyWithVideo(mediaFileId);
           } catch (fallbackErr) {
             this.logger.warn(
               `Video ham yuborib bo'lmadi: ${(fallbackErr as Error).message}`,
