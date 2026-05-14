@@ -24,6 +24,7 @@ import {
   QUEUE_NAMES,
 } from '../common/enums/queue-names.enum';
 import { buildInlineKeyboard } from '../common/utils/inline-buttons.util';
+import { renderTemplate } from '../common/utils/template.util';
 
 @Processor(QUEUE_NAMES.AUTO_MESSAGE)
 export class AutoMessagesProcessor extends WorkerHost {
@@ -78,7 +79,12 @@ export class AutoMessagesProcessor extends WorkerHost {
     }
 
     try {
-      await this.send(user.telegramId, message);
+      // Template variable substitution — {firstname}, {lastname}, {fullname}, {username}
+      const personalized = {
+        ...message,
+        text: renderTemplate(message.text, user, { escapeHtml: true }),
+      };
+      await this.send(user.telegramId, personalized);
       await this.service.logSent(autoMessageId, userId);
       this.logger.log(
         `AutoMessage #${autoMessageId} sent to user #${userId}`,

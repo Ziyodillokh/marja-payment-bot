@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Send, Users } from 'lucide-react';
 
@@ -17,6 +17,7 @@ import {
   MessageButtonsEditor,
   type CustomButton,
 } from '@/components/shared/message-buttons-editor';
+import { TemplateVarsButton } from '@/components/shared/template-vars-button';
 import type { BroadcastFilter } from '@/types';
 
 const FILTERS: Array<{
@@ -40,6 +41,7 @@ export default function NewBroadcastPage() {
   const [payButton, setPayButton] = useState(false);
   const [customButtons, setCustomButtons] = useState<CustomButton[]>([]);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
   const create = useCreateBroadcast();
 
@@ -171,13 +173,21 @@ export default function NewBroadcastPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Textarea
+                ref={textRef}
                 rows={8}
-                placeholder="Xabar matni (HTML: <b>, <i>, <u>, <a>)"
+                placeholder="Xabar matni (HTML: <b>, <i>, <u>, <a>). Shaxsiylashtirish: {firstname}, {fullname}"
                 value={text}
                 onChange={(e) => setText(e.target.value)}
               />
-              <div className="text-xs text-muted-foreground">
-                {text.length} belgi
+              <div className="flex items-center justify-between">
+                <TemplateVarsButton
+                  textareaRef={textRef}
+                  value={text}
+                  onChange={setText}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {text.length} belgi
+                </span>
               </div>
             </CardContent>
           </Card>

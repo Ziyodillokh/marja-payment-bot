@@ -2,7 +2,7 @@
 
 // Auto-message create yoki edit forma. Telegram-style live preview bilan.
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save } from 'lucide-react';
 
@@ -28,6 +28,7 @@ import {
   MessageButtonsEditor,
   type CustomButton,
 } from '@/components/shared/message-buttons-editor';
+import { TemplateVarsButton } from '@/components/shared/template-vars-button';
 import type { AutoMessage, TriggerType } from '@/types';
 
 // Foydalanuvchi so'roviga ko'ra 2 ta asosiy trigger:
@@ -58,6 +59,7 @@ export function AutoMessageForm({ initial }: Props) {
   const router = useRouter();
   const create = useCreateAutoMessage();
   const update = useUpdateAutoMessage();
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
   // Initial qiymatlardan time decompose
   const initialTime = decomposeSeconds(initial?.triggerAfter ?? 3600);
@@ -261,13 +263,21 @@ export function AutoMessageForm({ initial }: Props) {
           </CardHeader>
           <CardContent className="space-y-3">
             <Textarea
+              ref={textRef}
               rows={8}
               value={text}
               onChange={(e) => setText(e.target.value)}
-              placeholder="HTML qo'llab-quvvatlanadi: <b>, <i>, <u>, <a>"
+              placeholder="HTML qo'llab-quvvatlanadi: <b>, <i>, <u>, <a>. Shaxsiylashtirish uchun {firstname}, {fullname} ishlatishingiz mumkin."
             />
-            <div className="text-xs text-muted-foreground">
-              {text.length} belgi
+            <div className="flex items-center justify-between">
+              <TemplateVarsButton
+                textareaRef={textRef}
+                value={text}
+                onChange={setText}
+              />
+              <span className="text-xs text-muted-foreground">
+                {text.length} belgi
+              </span>
             </div>
           </CardContent>
         </Card>

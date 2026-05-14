@@ -30,6 +30,7 @@ import {
   QUEUE_NAMES,
 } from '../common/enums/queue-names.enum';
 import { buildInlineKeyboard } from '../common/utils/inline-buttons.util';
+import { renderTemplate } from '../common/utils/template.util';
 
 interface SendOnePayload {
   broadcastId: string;
@@ -90,14 +91,20 @@ export class BroadcastProcessor extends WorkerHost {
     const api = this.botService.bot.api;
     const parseMode = (broadcast.parseMode ?? 'HTML') as 'HTML' | 'MarkdownV2';
 
+    // Tahrirlanganda ham har bir foydalanuvchi uchun shaxsiylashtirilgan matn
+    const recipientUser = await this.users.findById(recipient.userId);
+    const text = recipientUser
+      ? renderTemplate(broadcast.text, recipientUser, { escapeHtml: true })
+      : broadcast.text;
+
     try {
       if (broadcast.mediaFileId) {
         await api.editMessageCaption(chatId, recipient.messageId, {
-          caption: broadcast.text,
+          caption: text,
           parse_mode: parseMode,
         });
       } else {
-        await api.editMessageText(chatId, recipient.messageId, broadcast.text, {
+        await api.editMessageText(chatId, recipient.messageId, text, {
           parse_mode: parseMode,
         });
       }
@@ -176,7 +183,12 @@ export class BroadcastProcessor extends WorkerHost {
     }
 
     try {
-      const messageId = await this.send(user.telegramId, broadcast);
+      // Template variable substitution — {firstname}/{lastname}/{fullname}/{username}
+      const personalized = {
+        ...broadcast,
+        text: renderTemplate(broadcast.text, user, { escapeHtml: true }),
+      };
+      const messageId = await this.send(user.telegramId, personalized);
       await this.service.incrementSent(broadcastId);
       // Recipient log — keyinchalik edit qilishda kerak.
       await this.prisma.broadcastRecipient.upsert({
