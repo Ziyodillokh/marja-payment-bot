@@ -6,7 +6,7 @@
 // 4. User'ga tasdiq xabarini qaytaradi.
 
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, TriggerType } from '@prisma/client';
 import { BotContext } from '../bot.context';
 import { PaymentsService } from '../../payments/payments.service';
 import { SettingsService } from '../../settings/settings.service';
@@ -18,6 +18,7 @@ import {
   formatPrice,
 } from '../../common/utils/html.util';
 import { BotService } from '../bot.service';
+import { AutoMessagesService } from '../../auto-messages/auto-messages.service';
 
 @Injectable()
 export class ReceiptHandler {
@@ -27,6 +28,7 @@ export class ReceiptHandler {
     private readonly payments: PaymentsService,
     private readonly settings: SettingsService,
     private readonly botService: BotService,
+    private readonly autoMessages: AutoMessagesService,
   ) {}
 
   async handle(ctx: BotContext): Promise<void> {
@@ -117,5 +119,18 @@ export class ReceiptHandler {
         `Iltimos, kuting... 🕐`,
       { parse_mode: 'HTML' },
     );
+
+    // AFTER_PAYMENT_NO_APPROVAL triggerli auto-message'larni darhol enqueue qilamiz.
+    // Aks holda 60-sekundlik scheduler tick'ini kutishga tushadi (kechikish).
+    try {
+      await this.autoMessages.scheduleForUser(
+        user.id,
+        TriggerType.AFTER_PAYMENT_NO_APPROVAL,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Failed to schedule AFTER_PAYMENT_NO_APPROVAL for user #${user.id}: ${(err as Error).message}`,
+      );
+    }
   }
 }

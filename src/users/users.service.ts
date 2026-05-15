@@ -141,6 +141,9 @@ export class UsersService {
       data: {
         phoneNumber,
         status: UserStatus.PHONE_PROVIDED,
+        // phoneProvidedAt — auto-message AFTER_PHONE_NO_PAYMENT trigger uchun
+        // (updatedAt'ga tayanish noto'g'ri edi: ball berish va boshqa update'lar reset qiladi)
+        phoneProvidedAt: new Date(),
       },
     });
   }

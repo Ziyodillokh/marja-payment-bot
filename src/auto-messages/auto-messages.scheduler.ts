@@ -140,10 +140,12 @@ export class AutoMessagesScheduler implements OnModuleInit {
           startedAt: { lte: thresholdDate },
         };
       case TriggerType.AFTER_PHONE_NO_PAYMENT:
-        // Telefon bergan, to'lov qilmagan, X vaqt o'tgan
+        // Telefon bergan, to'lov qilmagan, X vaqt o'tgan.
+        // phoneProvidedAt — kontakt bo'lganda o'rnatiladi; updatedAt ishlatib bo'lmaydi
+        // (boshqa update'lar reset qilardi: ball berish, profil yangilash va h.k.).
         return {
           status: UserStatus.PHONE_PROVIDED,
-          updatedAt: { lte: thresholdDate },
+          phoneProvidedAt: { lte: thresholdDate, not: null },
         };
       case TriggerType.AFTER_PAYMENT_NO_APPROVAL:
         // Chek yuborgan, hali tasdiqlanmagan, X vaqt o'tgan

@@ -76,6 +76,7 @@ model User {
   languageCode     String?
   status           UserStatus @default(NEW)
   startedAt        DateTime   @default(now())
+  phoneProvidedAt  DateTime?  // contact handler bossa o'rnatiladi (AFTER_PHONE_NO_PAYMENT auto-message uchun)
   paymentStartedAt DateTime?
   approvedAt       DateTime?
 
