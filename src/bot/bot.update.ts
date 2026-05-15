@@ -17,6 +17,7 @@ import { LeaderboardHandler } from './handlers/leaderboard.handler';
 import { ReferralHandler } from './handlers/referral.handler';
 import { CommentHandler } from './handlers/comment.handler';
 import { ReactionHandler } from './handlers/reaction.handler';
+import { ProgramHandler } from './handlers/program.handler';
 
 @Injectable()
 export class BotUpdate implements OnModuleInit {
@@ -35,6 +36,7 @@ export class BotUpdate implements OnModuleInit {
     private readonly referralHandler: ReferralHandler,
     private readonly commentHandler: CommentHandler,
     private readonly reactionHandler: ReactionHandler,
+    private readonly programHandler: ProgramHandler,
   ) {}
 
   onModuleInit(): void {
@@ -134,6 +136,15 @@ export class BotUpdate implements OnModuleInit {
       } catch (err) {
         this.logError('payment callback', err);
         await ctx.answerCallbackQuery({ text: 'Xatolik yuz berdi.' });
+      }
+    });
+
+    bot.callbackQuery('program', async (ctx) => {
+      try {
+        await ctx.answerCallbackQuery();
+        await this.programHandler.send(ctx);
+      } catch (err) {
+        this.logError('program callback', err);
       }
     });
 

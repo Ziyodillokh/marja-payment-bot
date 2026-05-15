@@ -16,7 +16,7 @@ import { GrammyError } from 'grammy';
 import { BotContext } from '../bot.context';
 import { SettingsService } from '../../settings/settings.service';
 import { SETTINGS_KEYS } from '../../common/enums/settings-keys.enum';
-import { payInlineKeyboard } from '../keyboards/inline.keyboards';
+import { welcomeInlineKeyboard } from '../keyboards/inline.keyboards';
 import { formatPrice } from '../../common/utils/html.util';
 import { renderTemplate } from '../../common/utils/template.util';
 
@@ -109,7 +109,7 @@ export class WelcomeHandler {
 
     await ctx.reply(combinedText, {
       parse_mode: 'HTML',
-      reply_markup: payInlineKeyboard(),
+      reply_markup: welcomeInlineKeyboard(),
     });
   }
 }

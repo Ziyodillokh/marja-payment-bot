@@ -26,6 +26,14 @@ const DEFAULT_SETTINGS: Array<{ key: string; value: string }> = [
       'Ushbu kursda siz boshlang\'ich darajadan professional darajaga qadar bilim olasiz.\n\n' +
       'Pastdagi tugma orqali to\'lovni amalga oshirib, yopiq kanalimizga qo\'shiling.',
   },
+  {
+    key: 'program_text',
+    value:
+      '<b>📋 Dastur haqida</b>\n\n' +
+      'Bu yerda kursimizning to\'liq dasturi haqida ma\'lumot bo\'ladi. ' +
+      "Admin paneldan istalgan vaqtda o'zgartirishingiz mumkin.",
+  },
+  { key: 'program_custom_buttons', value: '[]' },
   { key: 'card_number', value: '0000 0000 0000 0000' },
   { key: 'card_holder', value: 'ISMI FAMILIYASI' },
   { key: 'course_price', value: '500000' },

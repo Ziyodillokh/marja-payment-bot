@@ -7,6 +7,9 @@ export const SETTINGS_KEYS = {
   WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note', // "true" → dumaloq (faqat video)
   WELCOME_MEDIA_TYPE: 'welcome_media_type',       // 'video' | 'photo' | ''
   WELCOME_TEXT: 'welcome_text',
+  // Dastur (kurs) haqida xabari — welcome'dagi "📋 Dastur haqida" tugmasini bossa chiqadi.
+  PROGRAM_TEXT: 'program_text',
+  PROGRAM_CUSTOM_BUTTONS: 'program_custom_buttons', // JSON [{label,url}]
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',
   COURSE_PRICE: 'course_price',

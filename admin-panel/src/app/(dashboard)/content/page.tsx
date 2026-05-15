@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
+  BookOpen,
   CreditCard,
   DollarSign,
   FileText,
@@ -29,6 +30,10 @@ import {
   useDeleteWelcomeMedia,
 } from '@/lib/queries/useSettings';
 import { TemplateVarsButton } from '@/components/shared/template-vars-button';
+import {
+  MessageButtonsEditor,
+  type CustomButton,
+} from '@/components/shared/message-buttons-editor';
 import { formatCardNumber, formatPrice } from '@/lib/utils';
 import { api } from '@/lib/api';
 
@@ -37,6 +42,8 @@ const KEYS = {
   WELCOME_VIDEO_IS_NOTE: 'welcome_video_is_note',
   WELCOME_MEDIA_TYPE: 'welcome_media_type',
   WELCOME_TEXT: 'welcome_text',
+  PROGRAM_TEXT: 'program_text',
+  PROGRAM_CUSTOM_BUTTONS: 'program_custom_buttons',
   CARD_NUMBER: 'card_number',
   CARD_HOLDER: 'card_holder',
   COURSE_PRICE: 'course_price',
@@ -75,6 +82,10 @@ export default function ContentPage() {
             currentIsNote={map[KEYS.WELCOME_VIDEO_IS_NOTE] === 'true'}
           />
           <WelcomeTextSection initial={map[KEYS.WELCOME_TEXT] ?? ''} />
+          <ProgramTextSection
+            initialText={map[KEYS.PROGRAM_TEXT] ?? ''}
+            initialButtons={map[KEYS.PROGRAM_CUSTOM_BUTTONS] ?? '[]'}
+          />
           <CardSection
             initialNumber={map[KEYS.CARD_NUMBER] ?? ''}
             initialHolder={map[KEYS.CARD_HOLDER] ?? ''}
@@ -327,6 +338,111 @@ function WelcomeTextSection({ initial }: { initial: string }) {
             }
             disabled={update.isPending || value === initial}
           >
+            <Save className="h-4 w-4" />
+            Saqlash
+          </Button>
+        </div>
+      </div>
+    </SettingSection>
+  );
+}
+
+// ─────────── PROGRAM (DASTUR HAQIDA) ───────────
+
+function ProgramTextSection({
+  initialText,
+  initialButtons,
+}: {
+  initialText: string;
+  initialButtons: string;
+}) {
+  const [text, setText] = useState(initialText);
+  const update = useUpdateSetting();
+  const textRef = useRef<HTMLTextAreaElement>(null);
+
+  // JSON dan parse — noto'g'ri bo'lsa bo'sh massiv
+  const parseButtons = (raw: string): CustomButton[] => {
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter(
+        (b): b is CustomButton =>
+          b &&
+          typeof b === 'object' &&
+          typeof (b as CustomButton).label === 'string' &&
+          typeof (b as CustomButton).url === 'string',
+      );
+    } catch {
+      return [];
+    }
+  };
+
+  const [buttons, setButtons] = useState<CustomButton[]>(
+    parseButtons(initialButtons),
+  );
+
+  useEffect(() => setText(initialText), [initialText]);
+  useEffect(() => setButtons(parseButtons(initialButtons)), [initialButtons]);
+
+  const buttonsJson = JSON.stringify(
+    buttons.filter((b) => b.label.trim() && b.url.trim()),
+  );
+  const dirty = text !== initialText || buttonsJson !== initialButtons;
+
+  const save = async () => {
+    if (text !== initialText) {
+      await update.mutateAsync({ key: KEYS.PROGRAM_TEXT, value: text });
+    }
+    if (buttonsJson !== initialButtons) {
+      await update.mutateAsync({
+        key: KEYS.PROGRAM_CUSTOM_BUTTONS,
+        value: buttonsJson,
+      });
+    }
+  };
+
+  return (
+    <SettingSection
+      icon={BookOpen}
+      title="Dastur matni"
+      description={
+        "Welcome ekranidagi \"📋 Dastur haqida\" tugmasi bosilganda chiqadigan matn. " +
+        "Ostida default Balansim / Referral / TOP tugmalari turadi va siz qo'shimcha URL tugmalar qo'sha olasiz. " +
+        "Shaxsiylashtirish uchun {firstname} kabi o'zgaruvchilarni ishlating."
+      }
+    >
+      <div className="space-y-4">
+        <Textarea
+          ref={textRef}
+          rows={8}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="📋 Dastur haqida..."
+          className="font-mono text-xs"
+        />
+        <div className="flex items-center gap-2">
+          <TemplateVarsButton
+            textareaRef={textRef}
+            value={text}
+            onChange={setText}
+          />
+          <span className="text-xs text-muted-foreground">
+            {text.length} belgi
+          </span>
+        </div>
+
+        <div className="border-t border-border pt-4">
+          <MessageButtonsEditor
+            hidePayButton
+            payButton={false}
+            customButtons={buttons}
+            onPayButtonChange={() => {}}
+            onCustomButtonsChange={setButtons}
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={save} disabled={update.isPending || !dirty}>
             <Save className="h-4 w-4" />
             Saqlash
           </Button>

@@ -23,6 +23,8 @@ interface Props {
   customButtons: CustomButton[];
   onPayButtonChange: (value: boolean) => void;
   onCustomButtonsChange: (next: CustomButton[]) => void;
+  /** "💳 To'lov qilish" tugma checkbox'ini yashirish (mas. dastur matni uchun). */
+  hidePayButton?: boolean;
 }
 
 export function MessageButtonsEditor({
@@ -30,6 +32,7 @@ export function MessageButtonsEditor({
   customButtons,
   onPayButtonChange,
   onCustomButtonsChange,
+  hidePayButton = false,
 }: Props) {
   const updateButton = (i: number, patch: Partial<CustomButton>) => {
     const next = customButtons.map((b, idx) =>
@@ -56,6 +59,7 @@ export function MessageButtonsEditor({
       </div>
 
       {/* To'lov tugmasi */}
+      {!hidePayButton && (
       <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border bg-subtle/40 px-3 py-2.5 transition-colors hover:bg-subtle">
         <input
           type="checkbox"
@@ -73,6 +77,7 @@ export function MessageButtonsEditor({
           </div>
         </div>
       </label>
+      )}
 
       {/* Custom URL tugmalari */}
       <div className="space-y-2">

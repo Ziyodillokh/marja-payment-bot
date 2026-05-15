@@ -10,6 +10,7 @@ import { BotUpdate } from './bot.update';
 
 import { StartHandler } from './handlers/start.handler';
 import { WelcomeHandler } from './handlers/welcome.handler';
+import { ProgramHandler } from './handlers/program.handler';
 import { ContactHandler } from './handlers/contact.handler';
 import { PaymentHandler } from './handlers/payment.handler';
 import { ReceiptHandler } from './handlers/receipt.handler';
@@ -30,6 +31,7 @@ import { ReactionHandler } from './handlers/reaction.handler';
     BotUpdate,
     StartHandler,
     WelcomeHandler,
+    ProgramHandler,
     ContactHandler,
     PaymentHandler,
     ReceiptHandler,
