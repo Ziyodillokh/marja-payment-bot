@@ -18,6 +18,7 @@ import { SettingsService } from '../../settings/settings.service';
 import { SETTINGS_KEYS } from '../../common/enums/settings-keys.enum';
 import { payInlineKeyboard } from '../keyboards/inline.keyboards';
 import { formatPrice } from '../../common/utils/html.util';
+import { renderTemplate } from '../../common/utils/template.util';
 
 @Injectable()
 export class WelcomeHandler {
@@ -91,6 +92,19 @@ export class WelcomeHandler {
       combinedText = priceText
         ? `💰 <b>Kurs narxi:</b> ${priceText} so'm\n\nTo'lov qilish uchun pastdagi tugmani bosing 👇`
         : `To'lov qilish uchun pastdagi tugmani bosing 👇`;
+    }
+
+    // Template variable substitution — {firstname}, {lastname}, {fullname}, {username}
+    if (ctx.from) {
+      combinedText = renderTemplate(
+        combinedText,
+        {
+          firstName: ctx.from.first_name ?? null,
+          lastName: ctx.from.last_name ?? null,
+          username: ctx.from.username ?? null,
+        },
+        { escapeHtml: true },
+      );
     }
 
     await ctx.reply(combinedText, {

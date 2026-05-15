@@ -28,6 +28,7 @@ import {
   useUploadWelcomeMedia,
   useDeleteWelcomeMedia,
 } from '@/lib/queries/useSettings';
+import { TemplateVarsButton } from '@/components/shared/template-vars-button';
 import { formatCardNumber, formatPrice } from '@/lib/utils';
 import { api } from '@/lib/api';
 
@@ -290,6 +291,7 @@ function WelcomeMediaSection({
 function WelcomeTextSection({ initial }: { initial: string }) {
   const [value, setValue] = useState(initial);
   const update = useUpdateSetting();
+  const textRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => setValue(initial), [initial]);
 
@@ -297,20 +299,28 @@ function WelcomeTextSection({ initial }: { initial: string }) {
     <SettingSection
       icon={FileText}
       title="Welcome matni"
-      description="HTML qo'llab-quvvatlanadi: <b>, <i>, <u>, <a>. Telegram'ning HTML parse mode bo'yicha."
+      description="HTML qo'llab-quvvatlanadi: <b>, <i>, <u>, <a>. Shaxsiylashtirish uchun {firstname}, {fullname} kabi o'zgaruvchilarni ishlating."
     >
       <div className="space-y-3">
         <Textarea
+          ref={textRef}
           rows={8}
           value={value}
           onChange={(e) => setValue(e.target.value)}
-          placeholder="🎓 Bizning kursga xush kelibsiz..."
+          placeholder="🎓 {firstname}, bizning kursga xush kelibsiz..."
           className="font-mono text-xs"
         />
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            {value.length} belgi
-          </span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TemplateVarsButton
+              textareaRef={textRef}
+              value={value}
+              onChange={setValue}
+            />
+            <span className="text-xs text-muted-foreground">
+              {value.length} belgi
+            </span>
+          </div>
           <Button
             onClick={() =>
               update.mutate({ key: KEYS.WELCOME_TEXT, value })
