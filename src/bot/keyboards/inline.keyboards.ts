@@ -19,7 +19,10 @@ export const welcomeInlineKeyboard = (): InlineKeyboard =>
 export const payInlineKeyboard = welcomeInlineKeyboard;
 
 // Dastur (kurs) haqida xabari ostidagi tugmalar.
-// Standart: Balansim, Referral, TOP. Admin custom URL tugmalar qo'sha oladi.
+// Tartib:
+//   1. [💳 To'lov qilish] — alohida qator, butun kenglik
+//   2. [💎 Balansim] [🔗 Referral] [🏆 TOP] — bir qatorda 3 ta
+//   3. Admin qo'shgan URL tugmalari — har biri alohida qator
 export interface ProgramCustomButton {
   label: string;
   url: string;
@@ -28,6 +31,8 @@ export const programInlineKeyboard = (
   customButtons: ProgramCustomButton[] = [],
 ): InlineKeyboard => {
   const kb = new InlineKeyboard()
+    .text("💳 To'lov qilish", PAY_BUTTON_DATA)
+    .row()
     .text('💎 Balansim', 'balance')
     .text('🔗 Referral', 'referral')
     .text('🏆 TOP', 'leaderboard');
