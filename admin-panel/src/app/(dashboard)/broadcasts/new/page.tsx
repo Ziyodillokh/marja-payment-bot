@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Send, Users } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Send, User as UserIcon, Users, X } from 'lucide-react';
 
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,10 @@ import {
   type CustomButton,
 } from '@/components/shared/message-buttons-editor';
 import { TemplateVarsButton } from '@/components/shared/template-vars-button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useUser } from '@/lib/queries/useUsers';
+import { getFullName, getInitials } from '@/lib/utils';
 import type { BroadcastFilter } from '@/types';
 
 const FILTERS: Array<{
@@ -33,7 +37,16 @@ const FILTERS: Array<{
 
 export default function NewBroadcastPage() {
   const router = useRouter();
-  const [filter, setFilter] = useState<BroadcastFilter>('ALL');
+  const searchParams = useSearchParams();
+  // ?userId=<cuid> orqali kelganda — to'g'ridan-to'g'ri shu userga yuborish rejimi
+  const targetedUserId = searchParams.get('userId') || null;
+
+  const [filter, setFilter] = useState<BroadcastFilter>(
+    targetedUserId ? 'SPECIFIC' : 'ALL',
+  );
+  const [userIds, setUserIds] = useState<string[]>(
+    targetedUserId ? [targetedUserId] : [],
+  );
   const [text, setText] = useState('');
   const [mediaFileId, setMediaFileId] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<string | null>(null);
@@ -43,12 +56,22 @@ export default function NewBroadcastPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
+  // ?userId=... param sahifa yuklangandan keyin o'zgarsa, sinxronlash
+  useEffect(() => {
+    if (targetedUserId) {
+      setFilter('SPECIFIC');
+      setUserIds([targetedUserId]);
+    }
+  }, [targetedUserId]);
+
+  const targetedUser = useUser(targetedUserId ?? '');
   const create = useCreateBroadcast();
 
   const submit = () => {
     create.mutate(
       {
         filterType: filter,
+        userIds: filter === 'SPECIFIC' ? userIds : undefined,
         text,
         mediaFileId: mediaFileId ?? undefined,
         mediaType: mediaType ?? undefined,
@@ -67,7 +90,20 @@ export default function NewBroadcastPage() {
     );
   };
 
-  const canSend = !!(text.trim() || mediaFileId);
+  const removeTargetedUser = () => {
+    setUserIds([]);
+    setFilter('ALL');
+    // URL'dan ?userId ni olib tashlaymiz
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('userId');
+    router.replace(
+      `/broadcasts/new${params.toString() ? `?${params.toString()}` : ''}`,
+    );
+  };
+
+  const canSend =
+    !!(text.trim() || mediaFileId) &&
+    (filter !== 'SPECIFIC' || userIds.length > 0);
 
   return (
     <>
@@ -86,35 +122,87 @@ export default function NewBroadcastPage() {
             <CardHeader className="pb-3">
               <CardTitle>1. Auditoriya</CardTitle>
             </CardHeader>
-            <CardContent>
-              <RadioGroup
-                value={filter}
-                onValueChange={(v) => setFilter(v as BroadcastFilter)}
-                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-              >
-                {FILTERS.map((f) => {
-                  const active = filter === f.value;
-                  return (
-                    <Label
-                      key={f.value}
-                      htmlFor={`f-${f.value}`}
-                      className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
-                        active
-                          ? 'border-foreground bg-subtle/60'
-                          : 'border-border hover:bg-subtle/40'
-                      }`}
-                    >
-                      <RadioGroupItem id={`f-${f.value}`} value={f.value} />
-                      <div className="space-y-0.5">
-                        <div className="text-sm font-medium">{f.label}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {f.hint}
-                        </div>
+            <CardContent className="space-y-3">
+              {/* Tanlangan foydalanuvchi (SPECIFIC rejim) */}
+              {filter === 'SPECIFIC' && userIds.length > 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-foreground/30 bg-subtle/60 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      Yagona foydalanuvchiga:
+                    </span>
+                    {targetedUser.isLoading ? (
+                      <Skeleton className="h-5 w-32" />
+                    ) : targetedUser.data ? (
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-[10px]">
+                            {getInitials(
+                              targetedUser.data.firstName,
+                              targetedUser.data.lastName,
+                            )}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">
+                          {getFullName(
+                            targetedUser.data.firstName,
+                            targetedUser.data.lastName,
+                          )}
+                        </span>
+                        {targetedUser.data.username && (
+                          <span className="text-xs text-muted-foreground">
+                            @{targetedUser.data.username}
+                          </span>
+                        )}
                       </div>
-                    </Label>
-                  );
-                })}
-              </RadioGroup>
+                    ) : (
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {userIds[0].slice(0, 12)}…
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={removeTargetedUser}
+                    className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-subtle hover:text-foreground"
+                    aria-label="Foydalanuvchini olib tashlash"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Guruh filtrlari — faqat SPECIFIC bo'lmasa ko'rinadi */}
+              {filter !== 'SPECIFIC' && (
+                <RadioGroup
+                  value={filter}
+                  onValueChange={(v) => setFilter(v as BroadcastFilter)}
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                >
+                  {FILTERS.map((f) => {
+                    const active = filter === f.value;
+                    return (
+                      <Label
+                        key={f.value}
+                        htmlFor={`f-${f.value}`}
+                        className={`flex cursor-pointer items-start gap-3 rounded-md border p-3 transition-colors ${
+                          active
+                            ? 'border-foreground bg-subtle/60'
+                            : 'border-border hover:bg-subtle/40'
+                        }`}
+                      >
+                        <RadioGroupItem id={`f-${f.value}`} value={f.value} />
+                        <div className="space-y-0.5">
+                          <div className="text-sm font-medium">{f.label}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {f.hint}
+                          </div>
+                        </div>
+                      </Label>
+                    );
+                  })}
+                </RadioGroup>
+              )}
             </CardContent>
           </Card>
 
@@ -227,7 +315,7 @@ export default function NewBroadcastPage() {
             <CardContent>
               <div className="rounded-lg bg-[#0a0a0a] p-4">
                 <div className="mx-auto max-w-xs space-y-2">
-                  <div className="rounded-2xl rounded-bl-md bg-[#212121] px-3 py-2 text-sm text-white">
+                  <div className="whitespace-pre-wrap break-words rounded-2xl rounded-bl-md bg-[#212121] px-3 py-2 text-sm text-white">
                     {text || (
                       <span className="text-white/40">
                         Xabar matni shu yerda ko&apos;rinadi
@@ -241,10 +329,21 @@ export default function NewBroadcastPage() {
 
           <Card>
             <CardContent className="flex items-center gap-3 pt-6 text-sm">
-              <Users className="h-4 w-4 text-muted-foreground" />
+              {filter === 'SPECIFIC' ? (
+                <UserIcon className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Users className="h-4 w-4 text-muted-foreground" />
+              )}
               <span className="text-muted-foreground">Auditoriya:</span>
               <span className="font-medium">
-                {FILTERS.find((f) => f.value === filter)?.label}
+                {filter === 'SPECIFIC'
+                  ? targetedUser.data
+                    ? getFullName(
+                        targetedUser.data.firstName,
+                        targetedUser.data.lastName,
+                      )
+                    : 'Tanlangan foydalanuvchi'
+                  : FILTERS.find((f) => f.value === filter)?.label}
               </span>
             </CardContent>
           </Card>

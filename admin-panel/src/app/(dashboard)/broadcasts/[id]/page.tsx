@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { CheckCircle2, Edit3, Send, XCircle } from 'lucide-react';
+import { CheckCircle2, Edit3, Send, Trash2, XCircle } from 'lucide-react';
 
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { BroadcastStatusBadge } from '@/components/shared/status-badge';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
-import { useBroadcast, useEditBroadcast } from '@/lib/queries/useBroadcasts';
+import {
+  useBroadcast,
+  useCancelBroadcast,
+  useDeleteBroadcastMessages,
+  useEditBroadcast,
+} from '@/lib/queries/useBroadcasts';
 
 const FILTER_LABELS: Record<string, string> = {
   ALL: 'Hammaga',
@@ -38,10 +43,15 @@ export default function BroadcastDetailPage() {
     | (typeof data & { recipients?: RecipientStats })
     | undefined;
 
+  const router = useRouter();
   const editM = useEditBroadcast(id);
+  const cancelM = useCancelBroadcast();
+  const deleteM = useDeleteBroadcastMessages();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (broadcast?.text) setText(broadcast.text);
@@ -74,11 +84,35 @@ export default function BroadcastDetailPage() {
           { label: `#${id}` },
         ]}
         actions={
-          broadcast && !editing && (
-            <Button onClick={() => setEditing(true)} variant="outline">
-              <Edit3 className="h-4 w-4" />
-              Tahrirlash
-            </Button>
+          broadcast &&
+          !editing && (
+            <>
+              <Button onClick={() => setEditing(true)} variant="outline">
+                <Edit3 className="h-4 w-4" />
+                Tahrirlash
+              </Button>
+              {broadcast.status === 'PENDING' && (
+                <Button
+                  onClick={() => setCancelOpen(true)}
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Bekor qilish
+                </Button>
+              )}
+              {(broadcast.status === 'SENDING' ||
+                broadcast.status === 'COMPLETED') && (
+                <Button
+                  onClick={() => setDeleteOpen(true)}
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  O&apos;chirish
+                </Button>
+              )}
+            </>
           )
         }
       />
@@ -255,6 +289,42 @@ export default function BroadcastDetailPage() {
         confirmText="Ha, yangilash"
         loading={editM.isPending}
         onConfirm={handleSave}
+      />
+
+      <ConfirmDialog
+        open={cancelOpen}
+        onOpenChange={setCancelOpen}
+        title="Broadcast bekor qilinsinmi?"
+        description="Hali yuborilmagan xabar bekor qilinadi. Bu amalni qaytarib bo'lmaydi."
+        confirmText="Ha, bekor qilish"
+        loading={cancelM.isPending}
+        onConfirm={() =>
+          cancelM.mutate(id, {
+            onSuccess: () => {
+              setCancelOpen(false);
+              router.push('/broadcasts');
+            },
+          })
+        }
+      />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Xabar foydalanuvchilardan o'chirilsinmi?"
+        description={
+          (recipients
+            ? `${recipients.sent + recipients.edited} ta foydalanuvchi chatidan xabar o'chiriladi. `
+            : '') +
+          "Telegram cheklovi: bot 48 soatdan eski xabarlarni o'chira olmaydi — eski xabarlar foydalanuvchilarda qoladi."
+        }
+        confirmText="Ha, o'chirish"
+        loading={deleteM.isPending}
+        onConfirm={() =>
+          deleteM.mutate(id, {
+            onSuccess: () => setDeleteOpen(false),
+          })
+        }
       />
     </>
   );

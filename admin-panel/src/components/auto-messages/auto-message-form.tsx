@@ -331,7 +331,7 @@ export function AutoMessageForm({ initial }: Props) {
             <div className="rounded-lg bg-[#0a0a0a] p-4">
               <div className="mx-auto max-w-xs">
                 <div
-                  className="rounded-2xl rounded-bl-md bg-[#212121] px-3 py-2 text-sm text-white"
+                  className="break-words rounded-2xl rounded-bl-md bg-[#212121] px-3 py-2 text-sm text-white"
                   dangerouslySetInnerHTML={{
                     __html: text
                       ? sanitizeHtmlForPreview(text)
@@ -356,8 +356,8 @@ function decomposeSeconds(sec: number): { num: number; unit: string } {
 }
 
 // Telegram HTML preview uchun: <b>, <i>, <u>, <s>, <a> qoldiramiz, qolganini escape.
+// \n → <br> — chunki bot Telegram'ga \n bilan yuborganda har bir qator alohida ko'rinadi.
 function sanitizeHtmlForPreview(html: string): string {
-  // Juda oddiy: tasdiqlangan tag'larni qoldiramiz, < > script kabi xavflilarni escape qilamiz.
-  // Productionda DOMPurify ishlatish tavsiya etiladi, lekin bu admin-only preview.
-  return html.replace(/<(?!\/?(b|i|u|s|a|br|code|pre)\b)[^>]*>/gi, '');
+  const cleaned = html.replace(/<(?!\/?(b|i|u|s|a|br|code|pre)\b)[^>]*>/gi, '');
+  return cleaned.replace(/\n/g, '<br>');
 }

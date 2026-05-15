@@ -266,6 +266,12 @@ export const api = {
       const { data } = await http.delete<Broadcast>(`/broadcasts/${id}`);
       return data;
     },
+    deleteMessages: async (id: string): Promise<{ scheduled: number }> => {
+      const { data } = await http.post<{ scheduled: number }>(
+        `/broadcasts/${id}/delete-messages`,
+      );
+      return data;
+    },
     edit: async (
       id: string,
       input: { text?: string; mediaFileId?: string | null; mediaType?: string | null },

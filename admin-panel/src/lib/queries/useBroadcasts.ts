@@ -70,3 +70,17 @@ export function useCancelBroadcast() {
     onError: (err) => toast.error(extractErrorMessage(err)),
   });
 }
+
+export function useDeleteBroadcastMessages() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.broadcasts.deleteMessages(id),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['broadcasts'] });
+      toast.success(
+        `${data.scheduled} ta xabar o'chirilmoqda (Telegram 48 soatdan eski xabarlarni o'chira olmaydi)`,
+      );
+    },
+    onError: (err) => toast.error(extractErrorMessage(err)),
+  });
+}

@@ -13,6 +13,7 @@ import {
   Hash,
   Phone,
   Play,
+  Send,
   Settings2,
   Trophy,
   Users as UsersIcon,
@@ -61,10 +62,18 @@ export default function UserDetailPage() {
         ]}
         actions={
           user && (
-            <Button variant="outline" onClick={() => setAdjustOpen(true)}>
-              <Settings2 className="h-4 w-4" />
-              Ball o&apos;zgartirish
-            </Button>
+            <>
+              <Button variant="outline" asChild>
+                <Link href={`/broadcasts/new?userId=${user.id}`}>
+                  <Send className="h-4 w-4" />
+                  Xabar yuborish
+                </Link>
+              </Button>
+              <Button variant="outline" onClick={() => setAdjustOpen(true)}>
+                <Settings2 className="h-4 w-4" />
+                Ball o&apos;zgartirish
+              </Button>
+            </>
           )
         }
       />

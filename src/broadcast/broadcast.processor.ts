@@ -63,11 +63,51 @@ export class BroadcastProcessor extends WorkerHost {
       await this.handleSendOne(job.data as SendOnePayload);
       return;
     }
-    if (job.name === 'edit-broadcast-message') {
+    if (job.name === BROADCAST_JOBS.EDIT_ONE) {
       await this.handleEditOne(
         job.data as { broadcastId: string; recipientId: string },
       );
       return;
+    }
+    if (job.name === BROADCAST_JOBS.DELETE_ONE) {
+      await this.handleDeleteOne(
+        job.data as { broadcastId: string; recipientId: string },
+      );
+      return;
+    }
+  }
+
+  /**
+   * Bitta adresat chatidan xabarni o'chirish (deleteMessage).
+   * Telegram 48 soat ichidagi bot xabarlarini o'chirishga ruxsat beradi.
+   * Eski xabarlar uchun xato bo'ladi — log qilamiz va davom etamiz.
+   */
+  private async handleDeleteOne(payload: {
+    broadcastId: string;
+    recipientId: string;
+  }): Promise<void> {
+    const { recipientId } = payload;
+    const recipient = await this.prisma.broadcastRecipient.findUnique({
+      where: { id: recipientId },
+    });
+    if (!recipient || !recipient.messageId) return;
+
+    const chatId = recipient.telegramId.toString();
+    try {
+      await this.botService.bot.api.deleteMessage(chatId, recipient.messageId);
+      await this.prisma.broadcastRecipient.update({
+        where: { id: recipientId },
+        data: { status: 'DELETED' },
+      });
+    } catch (err) {
+      const msg = (err as Error).message;
+      this.logger.warn(
+        `deleteMessage failed for recipient #${recipientId}: ${msg}`,
+      );
+      await this.prisma.broadcastRecipient.update({
+        where: { id: recipientId },
+        data: { status: 'DELETE_FAILED', errorReason: msg },
+      });
     }
   }
 

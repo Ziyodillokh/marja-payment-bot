@@ -144,6 +144,12 @@ export class BroadcastsApiController {
     return this.broadcasts.cancel(id);
   }
 
+  /** Yuborilgan broadcast xabarlarini barcha adresatlardan Telegram'dan o'chirish */
+  @Post(':id/delete-messages')
+  async deleteFromRecipients(@Param('id') id: string) {
+    return this.broadcasts.deleteFromRecipients(id);
+  }
+
   // ──────────── HELPER ────────────
 
   private detectType(mime: string): string {

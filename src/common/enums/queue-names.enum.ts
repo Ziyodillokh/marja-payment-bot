@@ -9,6 +9,8 @@ export const QUEUE_NAMES = {
 export const BROADCAST_JOBS = {
   START: 'start-broadcast',
   SEND_ONE: 'send-broadcast-message',
+  EDIT_ONE: 'edit-broadcast-message',
+  DELETE_ONE: 'delete-broadcast-message',
 } as const;
 
 export const AUTO_MESSAGE_JOBS = {

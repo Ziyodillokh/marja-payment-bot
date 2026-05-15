@@ -164,7 +164,7 @@ export class BroadcastService {
     let delay = 0;
     for (const r of recipients) {
       await this.queue.add(
-        'edit-broadcast-message',
+        BROADCAST_JOBS.EDIT_ONE,
         { broadcastId: id, recipientId: r.id },
         {
           delay,
@@ -193,6 +193,46 @@ export class BroadcastService {
       where: { id },
       data: { status: BroadcastStatus.CANCELLED },
     });
+  }
+
+  /**
+   * Yuborilgan broadcast xabarlarini barcha adresatlardan o'chirish.
+   * Telegram cheklovi: bot o'z xabarini faqat 48 soat ichida o'chira oladi.
+   * Eski xabarlar uchun deleteMessage xato qaytaradi — biz uni log qilamiz va davom etamiz.
+   *
+   * Status SENDING yoki COMPLETED bo'lishi mumkin. PENDING (hali yuborilmagan) — cancel() ishlatiladi.
+   */
+  async deleteFromRecipients(id: string): Promise<{ scheduled: number }> {
+    const b = await this.getById(id);
+    if (b.status === BroadcastStatus.PENDING) {
+      throw new BadRequestException(
+        'PENDING broadcast hali yuborilmagan — Bekor qilish tugmasini bosing',
+      );
+    }
+    const recipients = await this.prisma.broadcastRecipient.findMany({
+      where: {
+        broadcastId: id,
+        status: { in: ['SENT', 'EDITED'] },
+        messageId: { not: null },
+      },
+    });
+
+    let delay = 0;
+    for (const r of recipients) {
+      await this.queue.add(
+        BROADCAST_JOBS.DELETE_ONE,
+        { broadcastId: id, recipientId: r.id },
+        {
+          delay,
+          jobId: `bc-del_${id}_${r.id}_${Date.now()}`,
+        },
+      );
+      delay += 50;
+    }
+    this.logger.log(
+      `Broadcast #${id} delete dispatched to ${recipients.length} recipients`,
+    );
+    return { scheduled: recipients.length };
   }
 
   // ──────────── Processor ichida ishlatiladi ────────────
